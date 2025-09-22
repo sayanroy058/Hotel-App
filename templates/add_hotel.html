@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Add New Hotel - Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-plus"></i> Add New Hotel</h2>
+        <p class="text-muted">Create a new hotel and setup owner account</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <form method="POST">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-building"></i> Hotel Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="hotel_name" class="form-label">Hotel Name *</label>
+                                <input type="text" class="form-control" id="hotel_name" name="hotel_name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="hotel_phone" class="form-label">Hotel Phone</label>
+                                <input type="tel" class="form-control" id="hotel_phone" name="hotel_phone">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="hotel_address" class="form-label">Hotel Address *</label>
+                        <textarea class="form-control" id="hotel_address" name="hotel_address" rows="3" required></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="hotel_email" class="form-label">Hotel Email</label>
+                                <input type="email" class="form-control" id="hotel_email" name="hotel_email">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="telegram_number" class="form-label">Telegram Number</label>
+                                <input type="text" class="form-control" id="telegram_number" name="telegram_number" 
+                                       placeholder="For Telegram Bot Integration">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="telegram_bot_token" class="form-label">Telegram Bot Token</label>
+                                <input type="text" class="form-control" id="telegram_bot_token" name="telegram_bot_token" 
+                                       placeholder="Bot token from BotFather" value="8065221659:AAE_nWRSZWtKU09tRacOPvU3xNd80FgXGXE">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="telegram_chat_id" class="form-label">Telegram Chat ID</label>
+                                <input type="text" class="form-control" id="telegram_chat_id" name="telegram_chat_id" 
+                                       placeholder="Chat ID for notifications">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-user-tie"></i> Hotel Owner Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="owner_name" class="form-label">Owner Full Name *</label>
+                                <input type="text" class="form-control" id="owner_name" name="owner_name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="owner_phone" class="form-label">Owner Phone</label>
+                                <input type="tel" class="form-control" id="owner_phone" name="owner_phone">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="owner_email" class="form-label">Owner Email *</label>
+                        <input type="email" class="form-control" id="owner_email" name="owner_email" required>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-key"></i> Login Credentials</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="owner_username" class="form-label">Username *</label>
+                                <input type="text" class="form-control" id="owner_username" name="owner_username" required>
+                                <div class="form-text">Owner will use this to login to their dashboard</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="owner_password" class="form-label">Password *</label>
+                                <input type="password" class="form-control" id="owner_password" name="owner_password" required>
+                                <div class="form-text">Minimum 6 characters recommended</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Create Hotel & Owner Account
+                </button>
+                <a href="{{ url_for('admin_hotels') }}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> Information</h5>
+            </div>
+            <div class="card-body">
+                <h6>What happens when you create a hotel?</h6>
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success"></i> Hotel record is created in the system</li>
+                    <li><i class="fas fa-check text-success"></i> Owner account is automatically created</li>
+                    <li><i class="fas fa-check text-success"></i> Owner can immediately login to their dashboard</li>
+                    <li><i class="fas fa-check text-success"></i> Owner can start adding rooms and managing bookings</li>
+                </ul>
+                
+                <hr>
+                
+                <h6>Telegram Integration</h6>
+                <p class="small text-muted">
+                    If you provide a Telegram number, the hotel owner can later configure 
+                    their Telegram bot for automated booking notifications and guest communication.
+                </p>
+                
+                <hr>
+                
+                <h6>Security Note</h6>
+                <p class="small text-muted">
+                    The owner password is securely hashed and stored. Make sure to provide 
+                    the credentials to the hotel owner securely.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

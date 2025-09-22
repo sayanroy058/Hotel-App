@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Check-in/Check-out - {{ session.username }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-sign-in-alt"></i> Check-in / Check-out Management</h2>
+        <p class="text-muted">Manage guest arrivals and departures for today</p>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Today's Check-ins -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-sign-in-alt"></i> Today's Check-ins ({{ checkins|length }})</h5>
+            </div>
+            <div class="card-body">
+                {% if checkins %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Guest</th>
+                                <th>Room</th>
+                                <th>Guests</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for checkin in checkins %}
+                            <tr>
+                                <td><strong>{{ checkin[1] }}</strong></td>
+                                <td><span class="badge bg-info">{{ checkin[2] }}</span></td>
+                                <td>{{ checkin[3] }}</td>
+                                <td>₹{{ "%.2f"|format(checkin[4]) }}</td>
+                                <td>
+                                    {% if checkin[5] %}
+                                        <span class="badge bg-success">Checked In</span>
+                                        <br><small class="text-muted">{{ checkin[5][:16] }}</small>
+                                    {% else %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if not checkin[5] %}
+                                    <button class="btn btn-sm btn-success" 
+                                            onclick="processCheckin({{ checkin[0] }})">
+                                        <i class="fas fa-sign-in-alt"></i> Check In
+                                    </button>
+                                    {% else %}
+                                    <small class="text-success">
+                                        <i class="fas fa-check"></i> Completed
+                                    </small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-calendar-check fa-2x text-muted mb-2"></i>
+                    <p class="text-muted">No check-ins scheduled for today</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Today's Check-outs -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5><i class="fas fa-sign-out-alt"></i> Today's Check-outs ({{ checkouts|length }})</h5>
+            </div>
+            <div class="card-body">
+                {% if checkouts %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Guest</th>
+                                <th>Room</th>
+                                <th>Amount</th>
+                                <th>Payment</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for checkout in checkouts %}
+                            <tr>
+                                <td><strong>{{ checkout[1] }}</strong></td>
+                                <td><span class="badge bg-info">{{ checkout[2] }}</span></td>
+                                <td>₹{{ "%.2f"|format(checkout[3]) }}</td>
+                                <td>
+                                    {% if checkout[4] == 'paid' %}
+                                        <span class="badge bg-success">Paid</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if checkout[6] %}
+                                        <span class="badge bg-success">Checked Out</span>
+                                        <br><small class="text-muted">{{ checkout[6][:16] }}</small>
+                                    {% elif checkout[5] %}
+                                        <span class="badge bg-info">Checked In</span>
+                                        <br><small class="text-muted">{{ checkout[5][:16] }}</small>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Not Checked In</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if checkout[5] and not checkout[6] %}
+                                    <button class="btn btn-sm btn-warning" 
+                                            onclick="processCheckout({{ checkout[0] }})">
+                                        <i class="fas fa-sign-out-alt"></i> Check Out
+                                    </button>
+                                    {% elif checkout[6] %}
+                                    <small class="text-success">
+                                        <i class="fas fa-check"></i> Completed
+                                    </small>
+                                    {% else %}
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock"></i> Waiting
+                                    </small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-calendar-times fa-2x text-muted mb-2"></i>
+                    <p class="text-muted">No check-outs scheduled for today</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h4>{{ checkins|selectattr(5)|list|length }}</h4>
+                <p class="mb-0">Completed Check-ins</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body text-center">
+                <h4>{{ checkins|rejectattr(5)|list|length }}</h4>
+                <p class="mb-0">Pending Check-ins</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h4>{{ checkouts|selectattr(6)|list|length }}</h4>
+                <p class="mb-0">Completed Check-outs</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h4>{{ checkouts|rejectattr(6)|list|length }}</h4>
+                <p class="mb-0">Pending Check-outs</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Current Guests -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-users"></i> Current Guests</h5>
+            </div>
+            <div class="card-body">
+                <div id="currentGuestsList">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading current guests...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Check-in/Check-out Modal -->
+<div class="modal fade" id="actionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="actionModalTitle">Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="actionModalBody">
+                <!-- Action details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmActionBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentAction = null;
+
+function processCheckin(bookingId) {
+    currentAction = {
+        type: 'checkin',
+        bookingId: bookingId
+    };
+    
+    document.getElementById('actionModalTitle').textContent = 'Confirm Check-in';
+    document.getElementById('actionModalBody').innerHTML = `
+        <p>Are you sure you want to check in this guest?</p>
+        <div class="mb-3">
+            <label for="checkinNotes" class="form-label">Notes (optional)</label>
+            <textarea class="form-control" id="checkinNotes" rows="3" placeholder="Any special notes or requests..."></textarea>
+        </div>
+    `;
+    
+    new bootstrap.Modal(document.getElementById('actionModal')).show();
+}
+
+function processCheckout(bookingId) {
+    currentAction = {
+        type: 'checkout',
+        bookingId: bookingId
+    };
+    
+    document.getElementById('actionModalTitle').textContent = 'Confirm Check-out';
+    document.getElementById('actionModalBody').innerHTML = `
+        <p>Are you sure you want to check out this guest?</p>
+        <div class="mb-3">
+            <label for="checkoutNotes" class="form-label">Notes (optional)</label>
+            <textarea class="form-control" id="checkoutNotes" rows="3" placeholder="Room condition, damages, etc..."></textarea>
+        </div>
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> Please ensure all payments are settled before check-out.
+        </div>
+    `;
+    
+    new bootstrap.Modal(document.getElementById('actionModal')).show();
+}
+
+document.getElementById('confirmActionBtn').addEventListener('click', function() {
+    if (!currentAction) return;
+    
+    const notes = currentAction.type === 'checkin' ? 
+        document.getElementById('checkinNotes').value : 
+        document.getElementById('checkoutNotes').value;
+    
+    const url = `/owner/bookings/${currentAction.bookingId}/${currentAction.type}`;
+    
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({notes: notes})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('actionModal')).hide();
+            location.reload();
+        } else {
+            alert('Error processing ' + currentAction.type);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error processing ' + currentAction.type);
+    });
+});
+
+// Load current guests
+function loadCurrentGuests() {
+    fetch('/owner/current-guests')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('currentGuestsList');
+            if (data.guests && data.guests.length > 0) {
+                let html = '<div class="row">';
+                data.guests.forEach(guest => {
+                    html += `
+                        <div class="col-md-6 mb-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title">${guest.name}</h6>
+                                    <p class="card-text">
+                                        <span class="badge bg-info">Room ${guest.room}</span>
+                                        <span class="badge bg-secondary">${guest.guests} guests</span>
+                                    </p>
+                                    <small class="text-muted">
+                                        Check-in: ${guest.checkin_date}<br>
+                                        Check-out: ${guest.checkout_date}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-2x text-muted mb-2"></i>
+                        <p class="text-muted">No guests currently checked in</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading current guests:', error);
+            document.getElementById('currentGuestsList').innerHTML = `
+                <div class="text-center py-4">
+                    <i class="fas fa-exclamation-triangle fa-2x text-danger mb-2"></i>
+                    <p class="text-danger">Error loading current guests</p>
+                </div>
+            `;
+        });
+}
+
+// Load current guests on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadCurrentGuests();
+});
+</script>
+{% endblock %}

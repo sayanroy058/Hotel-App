@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}New Booking - {{ session.username }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-plus"></i> Create New Booking</h2>
+        <p class="text-muted">Add a new booking to your hotel</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-user"></i> Booking Details</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="needs-validation" novalidate>
+                    <!-- Guest Information -->
+                    <h6 class="mb-3">Guest Information</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="guest_name" class="form-label">Guest Name *</label>
+                                <input type="text" class="form-control" id="guest_name" name="guest_name" required>
+                                <div class="invalid-feedback">Please provide guest name.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="guest_phone" class="form-label">Phone Number</label>
+                                <input type="tel" class="form-control" id="guest_phone" name="guest_phone">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="guest_email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="guest_email" name="guest_email">
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Booking Information -->
+                    <h6 class="mb-3">Booking Information</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="check_in_date" class="form-label">Check-in Date *</label>
+                                <input type="date" class="form-control" id="check_in_date" name="check_in_date" required>
+                                <div class="invalid-feedback">Please select check-in date.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="check_out_date" class="form-label">Check-out Date *</label>
+                                <input type="date" class="form-control" id="check_out_date" name="check_out_date" required>
+                                <div class="invalid-feedback">Please select check-out date.</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="guest_count" class="form-label">Number of Guests *</label>
+                                <input type="number" class="form-control" id="guest_count" name="guest_count" 
+                                       min="1" max="10" required>
+                                <div class="invalid-feedback">Please specify number of guests.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="room_id" class="form-label">Select Room *</label>
+                                <select class="form-select" id="room_id" name="room_id" required>
+                                    <option value="">Choose a room</option>
+                                    {% for room in rooms %}
+                                    <option value="{{ room[0] }}" data-price="{{ room[3] }}" data-capacity="{{ room[4] }}">
+                                        Room {{ room[1] }} - {{ room[2] }} (₹{{ "%.2f"|format(room[3]) }}/night, Max: {{ room[4] }} guests)
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="invalid-feedback">Please select a room.</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="special_requests" class="form-label">Special Requests</label>
+                        <textarea class="form-control" id="special_requests" name="special_requests" rows="3" 
+                                  placeholder="Any special requests or notes..."></textarea>
+                    </div>
+                    
+                    <!-- Booking Summary -->
+                    <div class="card bg-light mt-4">
+                        <div class="card-body">
+                            <h6>Booking Summary</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-1"><strong>Nights:</strong> <span id="nights">0</span></p>
+                                    <p class="mb-1"><strong>Rate per night:</strong> ₹<span id="rate">0.00</span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1"><strong>Total Amount:</strong> ₹<span id="total">0.00</span></p>
+                                    <p class="mb-1"><strong>Payment Status:</strong> <span class="badge bg-warning">Pending</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Create Booking
+                        </button>
+                        <a href="{{ url_for('owner_bookings') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> Booking Guidelines</h5>
+            </div>
+            <div class="card-body">
+                <h6>Guest Information</h6>
+                <p class="small text-muted">Collect at least the guest name. Email and phone are helpful for communication.</p>
+                
+                <h6>Room Selection</h6>
+                <p class="small text-muted">Ensure the selected room can accommodate the number of guests.</p>
+                
+                <h6>Dates</h6>
+                <p class="small text-muted">Check-out date must be after check-in date. The system will calculate nights automatically.</p>
+                
+                <h6>Payment</h6>
+                <p class="small text-muted">All new bookings start with "Pending" payment status. You can update this later.</p>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-bed"></i> Available Rooms</h5>
+            </div>
+            <div class="card-body">
+                {% if rooms %}
+                <div class="small">
+                    {% for room in rooms %}
+                    <div class="mb-2 p-2 border rounded">
+                        <strong>Room {{ room[1] }}</strong><br>
+                        <span class="text-muted">{{ room[2] }} - ₹{{ "%.2f"|format(room[3]) }}/night</span><br>
+                        <span class="badge bg-info">Max {{ room[4] }} guests</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">No rooms available. <a href="{{ url_for('add_room') }}">Add rooms first</a>.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Set minimum date to today
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('check_in_date').min = today;
+    document.getElementById('check_out_date').min = today;
+});
+
+// Update check-out minimum date when check-in changes
+document.getElementById('check_in_date').addEventListener('change', function() {
+    const checkinDate = new Date(this.value);
+    const checkoutDate = new Date(checkinDate);
+    checkoutDate.setDate(checkoutDate.getDate() + 1);
+    
+    document.getElementById('check_out_date').min = checkoutDate.toISOString().split('T')[0];
+    calculateTotal();
+});
+
+document.getElementById('check_out_date').addEventListener('change', calculateTotal);
+document.getElementById('room_id').addEventListener('change', calculateTotal);
+
+function calculateTotal() {
+    const checkinDate = document.getElementById('check_in_date').value;
+    const checkoutDate = document.getElementById('check_out_date').value;
+    const roomSelect = document.getElementById('room_id');
+    
+    if (checkinDate && checkoutDate && roomSelect.value) {
+        const checkin = new Date(checkinDate);
+        const checkout = new Date(checkoutDate);
+        const nights = Math.ceil((checkout - checkin) / (1000 * 60 * 60 * 24));
+        
+        const selectedOption = roomSelect.options[roomSelect.selectedIndex];
+        const rate = parseFloat(selectedOption.dataset.price) || 0;
+        const total = nights * rate;
+        
+        document.getElementById('nights').textContent = nights;
+        document.getElementById('rate').textContent = rate.toFixed(2);
+        document.getElementById('total').textContent = total.toFixed(2);
+    }
+}
+
+// Validate guest count against room capacity
+document.getElementById('guest_count').addEventListener('change', function() {
+    const roomSelect = document.getElementById('room_id');
+    if (roomSelect.value) {
+        const selectedOption = roomSelect.options[roomSelect.selectedIndex];
+        const capacity = parseInt(selectedOption.dataset.capacity) || 0;
+        const guestCount = parseInt(this.value) || 0;
+        
+        if (guestCount > capacity) {
+            this.setCustomValidity(`This room can accommodate maximum ${capacity} guests`);
+        } else {
+            this.setCustomValidity('');
+        }
+    }
+});
+
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+</script>
+{% endblock %}

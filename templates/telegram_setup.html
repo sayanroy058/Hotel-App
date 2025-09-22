@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Telegram Bot Setup - Hotel Management{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fab fa-telegram"></i> Telegram Bot Setup Guide</h2>
+        <p class="text-muted">Follow these steps to set up Telegram notifications for your hotel</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-list-ol"></i> Setup Steps</h5>
+            </div>
+            <div class="card-body">
+                <div class="step mb-4">
+                    <h6><span class="badge bg-primary">1</span> Start the Bot</h6>
+                    <p>Open Telegram and search for the bot using the bot token provided by your administrator, or click this link:</p>
+                    <a href="https://t.me/HotelManagementBot" class="btn btn-outline-primary" target="_blank">
+                        <i class="fab fa-telegram"></i> Open Bot in Telegram
+                    </a>
+                </div>
+                
+                <div class="step mb-4">
+                    <h6><span class="badge bg-primary">2</span> Get Your Chat ID</h6>
+                    <p>Send the command <code>/start</code> to the bot. The bot will reply with your Chat ID.</p>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> 
+                        <strong>Example response:</strong><br>
+                        "Welcome to the Hotel Management Bot! Your chat ID is: <strong>123456789</strong><br>
+                        Please provide this ID to your hotel administrator to receive notifications."
+                    </div>
+                </div>
+                
+                <div class="step mb-4">
+                    <h6><span class="badge bg-primary">3</span> Provide Chat ID to Administrator</h6>
+                    <p>Copy the Chat ID number and provide it to your hotel administrator so they can configure notifications for your hotel.</p>
+                </div>
+                
+                <div class="step mb-4">
+                    <h6><span class="badge bg-primary">4</span> Test the Connection</h6>
+                    <p>Once configured, your administrator can send a test message to verify the connection is working.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-bell"></i> What Notifications Will You Receive?</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success"></i> New booking confirmations</li>
+                    <li><i class="fas fa-check text-success"></i> Check-in/check-out alerts</li>
+                    <li><i class="fas fa-check text-success"></i> Booking cancellations</li>
+                    <li><i class="fas fa-check text-success"></i> Payment status updates</li>
+                    <li><i class="fas fa-check text-success"></i> System alerts and reminders</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-question-circle"></i> Troubleshooting</h5>
+            </div>
+            <div class="card-body">
+                <h6>Bot not responding?</h6>
+                <ul class="small">
+                    <li>Make sure you've clicked "Start" in the bot chat</li>
+                    <li>Check if the bot token is correct</li>
+                    <li>Try sending /help command</li>
+                </ul>
+                
+                <h6>Not receiving notifications?</h6>
+                <ul class="small">
+                    <li>Verify your Chat ID is correctly configured</li>
+                    <li>Ask admin to send a test message</li>
+                    <li>Check if notifications are enabled in Telegram</li>
+                </ul>
+                
+                <h6>Need help?</h6>
+                <p class="small">Contact your system administrator or hotel management for assistance.</p>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-shield-alt"></i> Privacy & Security</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    Your Chat ID is only used to send hotel-related notifications. 
+                    We don't store or access any other Telegram data. 
+                    You can stop receiving notifications at any time by blocking the bot.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}{{ hotel_name }} - Owner Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-tachometer-alt"></i> {{ hotel_name }} Dashboard</h2>
+        <p class="text-muted">Welcome back, {{ session.username }}! Here's your hotel overview.</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ total_rooms }}</h4>
+                        <p class="mb-0">Total Rooms</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-bed fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ occupied_rooms }}</h4>
+                        <p class="mb-0">Occupied Rooms</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ "%.1f"|format(occupancy_rate) }}%</h4>
+                        <p class="mb-0">Occupancy Rate</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-chart-pie fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>₹{{ "%.2f"|format(monthly_revenue) }}</h4>
+                        <p class="mb-0">Monthly Revenue</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-indian-rupee-sign fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-calendar-alt"></i> Recent Bookings</h5>
+                <a href="{{ url_for('owner_bookings') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if recent_bookings %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Guest</th>
+                                <th>Room</th>
+                                <th>Check-in</th>
+                                <th>Check-out</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for booking in recent_bookings %}
+                            <tr>
+                                <td>{{ booking[1] }}</td>
+                                <td>{{ booking[2] }}</td>
+                                <td>{{ booking[3] }}</td>
+                                <td>{{ booking[4] }}</td>
+                                <td>₹{{ "%.2f"|format(booking[5]) }}</td>
+                                <td>
+                                    {% if booking[6] == 'paid' %}
+                                        <span class="badge bg-success">Paid</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No bookings yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Quick Stats</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div class="border-end">
+                            <h4 class="text-primary">{{ today_bookings }}</h4>
+                            <p class="mb-0">Today's Bookings</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border-end">
+                            <h4 class="text-success">{{ total_rooms - occupied_rooms }}</h4>
+                            <p class="mb-0">Available Rooms</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <h4 class="text-info">{{ "%.1f"|format(100 - occupancy_rate) }}%</h4>
+                        <p class="mb-0">Vacancy Rate</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-tasks"></i> Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('add_booking') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> New Booking
+                    </a>
+                    <a href="{{ url_for('owner_checkin_checkout') }}" class="btn btn-success">
+                        <i class="fas fa-sign-in-alt"></i> Check-in/Check-out
+                    </a>
+                    <a href="{{ url_for('owner_rooms') }}" class="btn btn-info">
+                        <i class="fas fa-bed"></i> Manage Rooms
+                    </a>
+                    <a href="{{ url_for('owner_bookings') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-list"></i> View All Bookings
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-clock"></i> Today's Schedule</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6 class="text-success">Check-ins Expected</h6>
+                    <p class="mb-1">{{ today_bookings }} guests</p>
+                </div>
+                <div class="mb-3">
+                    <h6 class="text-warning">Check-outs Expected</h6>
+                    <p class="mb-1">Loading...</p>
+                </div>
+                <div>
+                    <h6 class="text-info">Current Occupancy</h6>
+                    <div class="progress">
+                        <div class="progress-bar" role="progressbar" style="width: {{ occupancy_rate }}%">
+                            {{ "%.1f"|format(occupancy_rate) }}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-bell"></i> Notifications</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info alert-sm">
+                    <i class="fas fa-info-circle"></i> Welcome to your hotel dashboard!
+                </div>
+                {% if total_rooms == 0 %}
+                <div class="alert alert-warning alert-sm">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    <a href="{{ url_for('owner_rooms') }}">Add rooms</a> to start taking bookings.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

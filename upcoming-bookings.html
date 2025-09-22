@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upcoming Bookings - Hotel Management</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1><i class="fas fa-hotel"></i> Hotel Management Dashboard</h1>
+                <nav class="nav-menu">
+                    <a href="index.html" class="nav-item"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                    <a href="upcoming-bookings.html" class="nav-item active"><i class="fas fa-calendar-alt"></i> Upcoming Bookings</a>
+                    <a href="all-bookings.html" class="nav-item"><i class="fas fa-list"></i> All Bookings</a>
+                </nav>
+                <div class="header-info">
+                    <span id="current-date"></span>
+                    <span id="current-time"></span>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-main">
+            <!-- Upcoming Bookings Stats -->
+            <section class="stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card upcoming">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Next 7 Days</h3>
+                            <div class="stat-number" id="upcoming-7-days">0</div>
+                            <div class="stat-percentage">Bookings</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card upcoming">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-week"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Next 30 Days</h3>
+                            <div class="stat-number" id="upcoming-30-days">0</div>
+                            <div class="stat-percentage">Bookings</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card revenue">
+                        <div class="stat-icon">
+                            <i class="fas fa-indian-rupee-sign"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Expected Revenue (30 Days)</h3>
+                            <div class="stat-number" id="expected-revenue">₹0</div>
+                            <div class="stat-change positive">Projected</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card source">
+                        <div class="stat-icon">
+                            <i class="fas fa-chart-pie"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Top Booking Source</h3>
+                            <div class="stat-number" id="top-source">-</div>
+                            <div class="stat-percentage" id="top-source-percentage">0%</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Filter Section -->
+            <section class="guests-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-calendar-alt"></i> Upcoming Bookings</h2>
+                    <div class="section-controls">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="search-bookings" placeholder="Search bookings...">
+                        </div>
+                        <div class="filter-dropdown">
+                            <select id="time-filter">
+                                <option value="7">Next 7 Days</option>
+                                <option value="30">Next 30 Days</option>
+                                <option value="90">Next 3 Months</option>
+                                <option value="all">All Future</option>
+                            </select>
+                        </div>
+                        <div class="filter-dropdown">
+                            <select id="source-filter">
+                                <option value="">All Sources</option>
+                                <option value="Offline">Offline</option>
+                                <option value="OYO">OYO</option>
+                                <option value="MakeMyTrip">MakeMyTrip</option>
+                                <option value="Goibibo">Goibibo</option>
+                                <option value="Booking.com">Booking.com</option>
+                                <option value="Expedia">Expedia</option>
+                                <option value="Agoda">Agoda</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="guests-table-container">
+                    <table class="guests-table">
+                        <thead>
+                            <tr>
+                                <th>Check-in Date</th>
+                                <th>Guest Name</th>
+                                <th>Mobile</th>
+                                <th>Room Type</th>
+                                <th>Duration</th>
+                                <th>Booking Source</th>
+                                <th>Total Amount</th>
+                                <th>Booking Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bookings-table-body">
+                            <!-- Booking data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Booking Sources Analytics -->
+            <section class="additional-stats">
+                <h3 style="text-align: center; margin-bottom: 20px; color: #2c3e50;">
+                    <i class="fas fa-chart-bar"></i> Booking Sources Distribution (Next 30 Days)
+                </h3>
+                <div class="booking-sources-grid" id="booking-sources">
+                    <!-- Source statistics will be populated by JavaScript -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Booking Details Modal -->
+    <div id="booking-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Booking Details</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Booking details will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="upcoming-bookings.js"></script>
+</body>
+</html>

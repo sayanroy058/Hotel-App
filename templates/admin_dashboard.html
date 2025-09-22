@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Hotel Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-tachometer-alt"></i> Admin Dashboard</h2>
+        <p class="text-muted">Welcome back, {{ session.username }}! Here's your system overview.</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ total_hotels }}</h4>
+                        <p class="mb-0">Total Hotels</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-building fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ total_rooms }}</h4>
+                        <p class="mb-0">Total Rooms</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-bed fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ monthly_bookings }}</h4>
+                        <p class="mb-0">Monthly Bookings</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-calendar-alt fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>₹{{ "%.2f"|format(monthly_revenue) }}</h4>
+                        <p class="mb-0">Monthly Revenue</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-indian-rupee-sign fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-building"></i> Recent Hotels</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_hotels %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Hotel Name</th>
+                                <th>Owner</th>
+                                <th>Email</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for hotel in recent_hotels %}
+                            <tr>
+                                <td>{{ hotel[1] }}</td>
+                                <td>{{ hotel[2] }}</td>
+                                <td>{{ hotel[3] }}</td>
+                                <td>{{ hotel[4][:10] }}</td>
+                                <td>
+                                    <a href="{{ url_for('view_hotel', hotel_id=hotel[0]) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No hotels registered yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-plus"></i> Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('add_hotel') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Add New Hotel
+                    </a>
+                    <a href="{{ url_for('admin_hotels') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-list"></i> View All Hotels
+                    </a>
+                    <a href="#" class="btn btn-outline-secondary">
+                        <i class="fas fa-chart-bar"></i> System Reports
+                    </a>
+                    <a href="#" class="btn btn-outline-info">
+                        <i class="fas fa-cog"></i> System Settings
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> System Info</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Version:</strong> 1.0.0</p>
+                <p><strong>Last Updated:</strong> <span class="current-date"></span></p>
+                <p><strong>Status:</strong> <span class="badge bg-success">Online</span></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

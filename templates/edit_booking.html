@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Booking - {{ session.username }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-edit"></i> Edit Booking #{{ booking[0] }}</h2>
+        <p class="text-muted">Update booking details for {{ booking[2] }}</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-user"></i> Booking Details</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="needs-validation" novalidate>
+                    <!-- Guest Information -->
+                    <h6 class="mb-3">Guest Information</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="guest_name" class="form-label">Guest Name *</label>
+                                <input type="text" class="form-control" id="guest_name" name="guest_name" 
+                                       value="{{ booking[2] }}" required>
+                                <div class="invalid-feedback">Please provide guest name.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="guest_phone" class="form-label">Phone Number</label>
+                                <input type="tel" class="form-control" id="guest_phone" name="guest_phone" 
+                                       value="{{ booking[4] or '' }}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="guest_email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="guest_email" name="guest_email" 
+                               value="{{ booking[3] or '' }}">
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Booking Information -->
+                    <h6 class="mb-3">Booking Information</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="check_in_date" class="form-label">Check-in Date *</label>
+                                <input type="date" class="form-control" id="check_in_date" name="check_in_date" 
+                                       value="{{ booking[6] }}" required>
+                                <div class="invalid-feedback">Please select check-in date.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="check_out_date" class="form-label">Check-out Date *</label>
+                                <input type="date" class="form-control" id="check_out_date" name="check_out_date" 
+                                       value="{{ booking[7] }}" required>
+                                <div class="invalid-feedback">Please select check-out date.</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="guest_count" class="form-label">Number of Guests *</label>
+                                <input type="number" class="form-control" id="guest_count" name="guest_count" 
+                                       min="1" max="10" value="{{ booking[8] }}" required>
+                                <div class="invalid-feedback">Please specify number of guests.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="room_id" class="form-label">Select Room *</label>
+                                <select class="form-select" id="room_id" name="room_id" required>
+                                    <option value="">Choose a room</option>
+                                    {% for room in rooms %}
+                                    <option value="{{ room[0] }}" data-price="{{ room[3] }}" data-capacity="{{ room[4] }}"
+                                            {{ 'selected' if room[0] == booking[5] else '' }}>
+                                        Room {{ room[1] }} - {{ room[2] }} (₹{{ "%.2f"|format(room[3]) }}/night, Max: {{ room[4] }} guests)
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="invalid-feedback">Please select a room.</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="special_requests" class="form-label">Special Requests</label>
+                        <textarea class="form-control" id="special_requests" name="special_requests" rows="3" 
+                                  placeholder="Any special requests or notes...">{{ booking[12] or '' }}</textarea>
+                    </div>
+                    
+                    <!-- Booking Summary -->
+                    <div class="card bg-light mt-4">
+                        <div class="card-body">
+                            <h6>Booking Summary</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-1"><strong>Current Amount:</strong> ₹{{ "%.2f"|format(booking[9]) }}</p>
+                                    <p class="mb-1"><strong>Payment Status:</strong> 
+                                        {% if booking[10] == 'paid' %}
+                                            <span class="badge bg-success">Paid</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">Pending</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1"><strong>New Nights:</strong> <span id="nights">0</span></p>
+                                    <p class="mb-1"><strong>New Total:</strong> ₹<span id="total">0.00</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Update Booking
+                        </button>
+                        <a href="{{ url_for('owner_bookings') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> Booking Information</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Booking ID:</strong> #{{ booking[0] }}</p>
+                <p><strong>Current Room:</strong> {{ booking[15] }}</p>
+                <p><strong>Created:</strong> {{ booking[13][:10] if booking[13] else 'N/A' }}</p>
+                <p><strong>Status:</strong> 
+                    {% if booking[11] == 'confirmed' %}
+                        <span class="badge bg-success">Confirmed</span>
+                    {% else %}
+                        <span class="badge bg-danger">Cancelled</span>
+                    {% endif %}
+                </p>
+                
+                <hr>
+                
+                <h6>Important Notes</h6>
+                <div class="alert alert-warning alert-sm">
+                    <i class="fas fa-exclamation-triangle"></i> Changing dates or room will recalculate the total amount.
+                </div>
+                <div class="alert alert-info alert-sm">
+                    <i class="fas fa-info-circle"></i> Payment status will remain unchanged unless manually updated.
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-history"></i> Booking History</h5>
+            </div>
+            <div class="card-body">
+                <div class="small">
+                    <p><strong>Original Check-in:</strong> {{ booking[6] }}</p>
+                    <p><strong>Original Check-out:</strong> {{ booking[7] }}</p>
+                    <p><strong>Original Amount:</strong> ₹{{ "%.2f"|format(booking[9]) }}</p>
+                    <p><strong>Guest Count:</strong> {{ booking[8] }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Set minimum date to today for new bookings, but allow past dates for existing bookings
+document.addEventListener('DOMContentLoaded', function() {
+    calculateTotal();
+});
+
+// Update check-out minimum date when check-in changes
+document.getElementById('check_in_date').addEventListener('change', function() {
+    const checkinDate = new Date(this.value);
+    const checkoutDate = new Date(checkinDate);
+    checkoutDate.setDate(checkoutDate.getDate() + 1);
+    
+    document.getElementById('check_out_date').min = checkoutDate.toISOString().split('T')[0];
+    calculateTotal();
+});
+
+document.getElementById('check_out_date').addEventListener('change', calculateTotal);
+document.getElementById('room_id').addEventListener('change', calculateTotal);
+
+function calculateTotal() {
+    const checkinDate = document.getElementById('check_in_date').value;
+    const checkoutDate = document.getElementById('check_out_date').value;
+    const roomSelect = document.getElementById('room_id');
+    
+    if (checkinDate && checkoutDate && roomSelect.value) {
+        const checkin = new Date(checkinDate);
+        const checkout = new Date(checkoutDate);
+        const nights = Math.ceil((checkout - checkin) / (1000 * 60 * 60 * 24));
+        
+        const selectedOption = roomSelect.options[roomSelect.selectedIndex];
+        const rate = parseFloat(selectedOption.dataset.price) || 0;
+        const total = nights * rate;
+        
+        document.getElementById('nights').textContent = nights;
+        document.getElementById('total').textContent = total.toFixed(2);
+    }
+}
+
+// Validate guest count against room capacity
+document.getElementById('guest_count').addEventListener('change', function() {
+    const roomSelect = document.getElementById('room_id');
+    if (roomSelect.value) {
+        const selectedOption = roomSelect.options[roomSelect.selectedIndex];
+        const capacity = parseInt(selectedOption.dataset.capacity) || 0;
+        const guestCount = parseInt(this.value) || 0;
+        
+        if (guestCount > capacity) {
+            this.setCustomValidity(`This room can accommodate maximum ${capacity} guests`);
+        } else {
+            this.setCustomValidity('');
+        }
+    }
+});
+
+// Form validation
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+</script>
+{% endblock %}

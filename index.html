@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Management Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1><i class="fas fa-hotel"></i> Hotel Management Dashboard</h1>
+                <nav class="nav-menu">
+                    <a href="index.html" class="nav-item active"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                    <a href="upcoming-bookings.html" class="nav-item"><i class="fas fa-calendar-alt"></i> Upcoming Bookings</a>
+                    <a href="all-bookings.html" class="nav-item"><i class="fas fa-list"></i> All Bookings</a>
+                </nav>
+                <div class="header-info">
+                    <span id="current-date"></span>
+                    <span id="current-time"></span>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-main">
+            <!-- Room Occupancy Section -->
+            <section class="stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card occupied">
+                        <div class="stat-icon">
+                            <i class="fas fa-bed"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Occupied Rooms</h3>
+                            <div class="stat-number" id="occupied-rooms">0</div>
+                            <div class="stat-percentage" id="occupancy-rate">0%</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card vacant">
+                        <div class="stat-icon">
+                            <i class="fas fa-door-open"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Vacant Rooms</h3>
+                            <div class="stat-number" id="vacant-rooms">0</div>
+                            <div class="stat-percentage" id="vacancy-rate">0%</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card revenue">
+                        <div class="stat-icon">
+                            <i class="fas fa-indian-rupee-sign"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Weekly Revenue</h3>
+                            <div class="stat-number" id="weekly-revenue">₹0</div>
+                            <div class="stat-change positive">+12.5%</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card revenue">
+                        <div class="stat-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Monthly Revenue</h3>
+                            <div class="stat-number" id="monthly-revenue">₹0</div>
+                            <div class="stat-change positive">+8.3%</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Guests Section -->
+            <section class="guests-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-users"></i> Current Guests</h2>
+                    <div class="section-controls">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="search-guests" placeholder="Search guests...">
+                        </div>
+                        <div class="filter-dropdown">
+                            <select id="room-filter">
+                                <option value="">All Rooms</option>
+                                <option value="Standard">Standard</option>
+                                <option value="Deluxe">Deluxe</option>
+                                <option value="Suite">Suite</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="guests-table-container">
+                    <table class="guests-table">
+                        <thead>
+                            <tr>
+                                <th>Room</th>
+                                <th>Guest Name</th>
+                                <th>Mobile</th>
+                                <th>Address</th>
+                                <th>Check-in</th>
+                                <th>Check-out</th>
+                                <th>Duration</th>
+                                <th>Room Type</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="guests-table-body">
+                            <!-- Guest data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Additional Stats Section -->
+            <section class="additional-stats">
+                <div class="stats-row">
+                    <div class="mini-stat-card">
+                        <h4>Today's Check-ins</h4>
+                        <div class="mini-stat-number" id="today-checkins">0</div>
+                    </div>
+                    <div class="mini-stat-card">
+                        <h4>Today's Check-outs</h4>
+                        <div class="mini-stat-number" id="today-checkouts">0</div>
+                    </div>
+                    <div class="mini-stat-card">
+                        <h4>Average Stay</h4>
+                        <div class="mini-stat-number" id="avg-stay">0 days</div>
+                    </div>
+                    <div class="mini-stat-card">
+                        <h4>Total Rooms</h4>
+                        <div class="mini-stat-number" id="total-rooms">100</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Guest Details Modal -->
+    <div id="guest-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Guest Details</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Guest details will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

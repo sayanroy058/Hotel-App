@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}{{ hotel[1] }} - Hotel Details{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-building"></i> {{ hotel[1] }}</h2>
+            <div>
+                <a href="{{ url_for('edit_hotel', hotel_id=hotel[0]) }}" class="btn btn-warning">
+                    <i class="fas fa-edit"></i> Edit Hotel
+                </a>
+                <a href="{{ url_for('admin_hotels') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Hotels
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> Hotel Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Hotel Name:</strong> {{ hotel[1] }}</p>
+                        <p><strong>Address:</strong><br>{{ hotel[2] }}</p>
+                        <p><strong>Phone:</strong> {{ hotel[3] or 'Not provided' }}</p>
+                        <p><strong>Email:</strong> {{ hotel[4] or 'Not provided' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Telegram Number:</strong> 
+                            {% if hotel[5] %}
+                                <span class="badge bg-success">{{ hotel[5] }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Not configured</span>
+                            {% endif %}
+                        </p>
+                        <p><strong>Created:</strong> {{ hotel[10][:10] if hotel[10] else 'N/A' }}</p>
+                        <p><strong>Status:</strong> 
+                            {% if hotel[11] %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-user-tie"></i> Owner Information</h5>
+            </div>
+            <div class="card-body">
+                {% if owner %}
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Owner Name:</strong> {{ owner[5] }}</p>
+                        <p><strong>Email:</strong> {{ owner[3] }}</p>
+                        <p><strong>Phone:</strong> {{ owner[6] or 'Not provided' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Username:</strong> {{ owner[2] }}</p>
+                        <p><strong>Account Created:</strong> {{ owner[7][:10] if owner[7] else 'N/A' }}</p>
+                        <p><strong>Account Status:</strong> 
+                            {% if owner[8] %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted">No owner account found for this hotel.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Hotel Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <h3 class="text-primary">{{ rooms_count }}</h3>
+                    <p class="mb-0">Total Rooms</p>
+                </div>
+                
+                <div class="text-center mb-3">
+                    <h3 class="text-success">{{ bookings_count }}</h3>
+                    <p class="mb-0">Total Bookings</p>
+                </div>
+                
+                <hr>
+                
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary btn-sm" onclick="loadHotelStats()">
+                        <i class="fas fa-sync"></i> Refresh Stats
+                    </button>
+                    <a href="#" class="btn btn-outline-info btn-sm">
+                        <i class="fas fa-chart-line"></i> View Reports
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-cogs"></i> Management Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if hotel[11] %}
+                    <button class="btn btn-outline-warning btn-sm" onclick="toggleHotelStatus({{ hotel[0] }}, false)">
+                        <i class="fas fa-pause"></i> Deactivate Hotel
+                    </button>
+                    {% else %}
+                    <button class="btn btn-outline-success btn-sm" onclick="toggleHotelStatus({{ hotel[0] }}, true)">
+                        <i class="fas fa-play"></i> Activate Hotel
+                    </button>
+                    {% endif %}
+                    
+                    <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteHotel({{ hotel[0] }}, '{{ hotel[1] }}')">
+                        <i class="fas fa-trash"></i> Delete Hotel
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-robot"></i> Telegram Integration</h5>
+            </div>
+            <div class="card-body">
+                {% if hotel[5] %}
+                <p class="small text-success">
+                    <i class="fas fa-check-circle"></i> Telegram number configured: {{ hotel[5] }}
+                </p>
+                {% if hotel[12] %}
+                <p class="small text-success">
+                    <i class="fas fa-check-circle"></i> Chat ID configured: {{ hotel[12] }}
+                </p>
+                <div class="d-grid">
+                    <button class="btn btn-outline-primary btn-sm" onclick="testTelegramConnection({{ hotel[0] }})">
+                        <i class="fas fa-paper-plane"></i> Test Connection
+                    </button>
+                </div>
+                {% else %}
+                <p class="small text-warning">
+                    <i class="fas fa-exclamation-triangle"></i> Chat ID not configured.
+                </p>
+                <p class="small text-muted">
+                    Ask the hotel owner to start the bot and provide their chat ID.
+                </p>
+                {% endif %}
+                {% else %}
+                <p class="small text-warning">
+                    <i class="fas fa-exclamation-triangle"></i> No Telegram number configured.
+                </p>
+                <p class="small text-muted">
+                    Add a Telegram number to enable bot integration for this hotel.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleHotelStatus(hotelId, status) {
+    const action = status ? 'activate' : 'deactivate';
+    if (confirm(`Are you sure you want to ${action} this hotel?`)) {
+        // Create a form to submit a POST request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/admin/hotels/${hotelId}/toggle`;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function confirmDeleteHotel(hotelId, hotelName) {
+    if (confirm(`Are you sure you want to delete "${hotelName}"? This action cannot be undone and will delete all associated data.`)) {
+        // Create a form to submit a POST request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/admin/hotels/${hotelId}/delete`;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function loadHotelStats() {
+    // Refresh the page to get updated stats
+    location.reload();
+}
+
+function testTelegramConnection(hotelId) {
+    if (confirm('Send a test message to the configured Telegram chat?')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/admin/hotels/${hotelId}/test-telegram`;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}

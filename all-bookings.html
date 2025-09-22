@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Bookings - Hotel Management</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1><i class="fas fa-hotel"></i> Hotel Management Dashboard</h1>
+                <nav class="nav-menu">
+                    <a href="index.html" class="nav-item"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                    <a href="upcoming-bookings.html" class="nav-item"><i class="fas fa-calendar-alt"></i> Upcoming Bookings</a>
+                    <a href="all-bookings.html" class="nav-item active"><i class="fas fa-list"></i> All Bookings</a>
+                </nav>
+                <div class="header-info">
+                    <span id="current-date"></span>
+                    <span id="current-time"></span>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-main">
+            <!-- Booking Overview Stats -->
+            <section class="stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card occupied">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Total Bookings</h3>
+                            <div class="stat-number" id="total-bookings">0</div>
+                            <div class="stat-percentage">All Time</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card revenue">
+                        <div class="stat-icon">
+                            <i class="fas fa-indian-rupee-sign"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Total Revenue</h3>
+                            <div class="stat-number" id="total-revenue">₹0</div>
+                            <div class="stat-change positive">Lifetime</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card upcoming">
+                        <div class="stat-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Average Booking Value</h3>
+                            <div class="stat-number" id="avg-booking-value">₹0</div>
+                            <div class="stat-percentage">Per Booking</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card source">
+                        <div class="stat-icon">
+                            <i class="fas fa-globe"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>Online vs Offline</h3>
+                            <div class="stat-number" id="online-percentage">0%</div>
+                            <div class="stat-percentage">Online Bookings</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Advanced Filters Section -->
+            <section class="guests-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-list"></i> All Bookings</h2>
+                    <div class="export-actions">
+                        <button class="action-btn export" onclick="allBookings.exportData()">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Advanced Filters -->
+                <div class="advanced-filters">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Date Range</label>
+                            <div class="date-range-filters">
+                                <input type="date" id="start-date" class="date-input">
+                                <span>to</span>
+                                <input type="date" id="end-date" class="date-input">
+                                <button class="action-btn apply" onclick="allBookings.applyDateRange()">Apply</button>
+                            </div>
+                        </div>
+                        <div class="filter-group">
+                            <label>Quick Filters</label>
+                            <div class="quick-filters">
+                                <button class="filter-btn" data-period="7">Last 7 Days</button>
+                                <button class="filter-btn" data-period="30">Last 30 Days</button>
+                                <button class="filter-btn" data-period="90">Last 3 Months</button>
+                                <button class="filter-btn active" data-period="all">All Time</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-row">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="search-all-bookings" placeholder="Search by name, mobile, or room...">
+                        </div>
+                        <div class="filter-dropdown">
+                            <select id="booking-source-filter">
+                                <option value="">All Booking Sources</option>
+                                <option value="Offline">Offline</option>
+                                <option value="OYO">OYO</option>
+                                <option value="MakeMyTrip">MakeMyTrip</option>
+                                <option value="Goibibo">Goibibo</option>
+                                <option value="Booking.com">Booking.com</option>
+                                <option value="Expedia">Expedia</option>
+                                <option value="Agoda">Agoda</option>
+                            </select>
+                        </div>
+                        <div class="filter-dropdown">
+                            <select id="booking-status-filter">
+                                <option value="">All Status</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="checked-in">Checked In</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="filter-dropdown">
+                            <select id="room-type-filter">
+                                <option value="">All Room Types</option>
+                                <option value="Standard">Standard</option>
+                                <option value="Deluxe">Deluxe</option>
+                                <option value="Suite">Suite</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="booking-results-info">
+                    <div class="results-count">
+                        Showing <span id="showing-count">0</span> of <span id="total-count">0</span> bookings
+                    </div>
+                    <div class="sort-options">
+                        <select id="sort-by">
+                            <option value="checkIn-desc">Check-in Date (Newest First)</option>
+                            <option value="checkIn-asc">Check-in Date (Oldest First)</option>
+                            <option value="bookingDate-desc">Booking Date (Newest First)</option>
+                            <option value="bookingDate-asc">Booking Date (Oldest First)</option>
+                            <option value="amount-desc">Amount (High to Low)</option>
+                            <option value="amount-asc">Amount (Low to High)</option>
+                            <option value="name-asc">Guest Name (A-Z)</option>
+                            <option value="name-desc">Guest Name (Z-A)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="guests-table-container">
+                    <table class="guests-table">
+                        <thead>
+                            <tr>
+                                <th>Booking Date</th>
+                                <th>Guest Name</th>
+                                <th>Mobile</th>
+                                <th>Check-in Date</th>
+                                <th>Check-out Date</th>
+                                <th>Duration</th>
+                                <th>Room Type</th>
+                                <th>Booking Source</th>
+                                <th>Total Amount</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="all-bookings-table-body">
+                            <!-- Booking data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        <span id="pagination-info">Showing 1-50 of 200 results</span>
+                    </div>
+                    <div class="pagination-controls">
+                        <button class="action-btn" id="prev-page" disabled onclick="allBookings.previousPage()">
+                            <i class="fas fa-chevron-left"></i> Previous
+                        </button>
+                        <div class="page-numbers" id="page-numbers">
+                            <!-- Page numbers will be populated by JavaScript -->
+                        </div>
+                        <button class="action-btn" id="next-page" onclick="allBookings.nextPage()">
+                            Next <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Detailed Analytics -->
+            <section class="additional-stats">
+                <h3 style="text-align: center; margin-bottom: 20px; color: #2c3e50;">
+                    <i class="fas fa-chart-bar"></i> Booking Analytics
+                </h3>
+                
+                <!-- Booking Sources Distribution -->
+                <div class="analytics-section">
+                    <h4><i class="fas fa-globe"></i> Booking Sources Performance</h4>
+                    <div class="booking-sources-grid" id="all-booking-sources">
+                        <!-- Source statistics will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Monthly Trend -->
+                <div class="analytics-section" style="margin-top: 30px;">
+                    <h4><i class="fas fa-chart-line"></i> Monthly Performance</h4>
+                    <div class="monthly-stats" id="monthly-stats">
+                        <!-- Monthly statistics will be populated by JavaScript -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Booking Details Modal -->
+    <div id="all-booking-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Booking Details</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Booking details will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="all-bookings.js"></script>
+</body>
+</html>
