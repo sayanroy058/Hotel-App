@@ -163,6 +163,9 @@
                     <a href="{{ url_for('owner_checkin_checkout') }}" class="btn btn-success">
                         <i class="fas fa-sign-in-alt"></i> Check-in/Check-out
                     </a>
+                    <a href="{{ url_for('manage_documents') }}" class="btn btn-warning">
+                        <i class="fas fa-file-alt"></i> Manage Documents
+                    </a>
                     <a href="{{ url_for('owner_rooms') }}" class="btn btn-info">
                         <i class="fas fa-bed"></i> Manage Rooms
                     </a>
@@ -199,6 +202,34 @@
         
         <div class="card mt-3">
             <div class="card-header">
+                <h5><i class="fas fa-robot"></i> AI Assistant</h5>
+            </div>
+            <div class="card-body">
+                <div id="chatbot-container">
+                    <div id="chat-messages" style="height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; background-color: #f8f9fa;">
+                        <div class="chat-message bot-message">
+                            <small class="text-muted">AI Assistant</small><br>
+                            <span>👋 Hi! I'm your hotel AI assistant. Ask me about occupancy, revenue, check-ins, or any other hotel insights!</span>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="chat-input" class="form-control" placeholder="Ask about your hotel..." onkeypress="handleChatKeyPress(event)">
+                        <button class="btn btn-primary" onclick="sendChatMessage()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">Quick questions:</small><br>
+                        <button class="btn btn-sm btn-outline-secondary me-1 mb-1" onclick="askQuickQuestion('What is my occupancy rate today?')">Occupancy</button>
+                        <button class="btn btn-sm btn-outline-secondary me-1 mb-1" onclick="askQuickQuestion('How much revenue did I make this month?')">Revenue</button>
+                        <button class="btn btn-sm btn-outline-secondary me-1 mb-1" onclick="askQuickQuestion('How many check-ins do I have today?')">Check-ins</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
                 <h5><i class="fas fa-bell"></i> Notifications</h5>
             </div>
             <div class="card-body">
@@ -215,4 +246,112 @@
         </div>
     </div>
 </div>
+
+<script>
+function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // Add user message to chat
+    addChatMessage(message, 'user');
+    input.value = '';
+    
+    // Show typing indicator
+    const typingDiv = addChatMessage('Thinking...', 'bot', true);
+    
+    // Send to backend
+    fetch('/owner/chatbot', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: message })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Remove typing indicator
+        typingDiv.remove();
+        
+        if (data.error) {
+            addChatMessage('Sorry, I encountered an error: ' + data.error, 'bot');
+        } else {
+            addChatMessage(data.response, 'bot');
+        }
+    })
+    .catch(error => {
+        typingDiv.remove();
+        addChatMessage('Sorry, I could not process your request.', 'bot');
+    });
+}
+
+function addChatMessage(message, sender, isTemporary = false) {
+    const chatMessages = document.getElementById('chat-messages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${sender}-message`;
+    if (isTemporary) messageDiv.className += ' temporary';
+    
+    const senderLabel = sender === 'user' ? 'You' : 'AI Assistant';
+    const senderClass = sender === 'user' ? 'text-primary' : 'text-muted';
+    
+    messageDiv.innerHTML = `
+        <small class="${senderClass}">${senderLabel}</small><br>
+        <span>${message}</span>
+    `;
+    
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    return messageDiv;
+}
+
+function askQuickQuestion(question) {
+    document.getElementById('chat-input').value = question;
+    sendChatMessage();
+}
+
+function handleChatKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendChatMessage();
+    }
+}
+
+// Load quick insights on page load
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/owner/chatbot/insights')
+    .then(response => response.json())
+    .then(data => {
+        if (!data.error) {
+            // You can display insights somewhere if needed
+            console.log('Quick insights loaded:', data);
+        }
+    })
+    .catch(error => console.log('Could not load insights'));
+});
+</script>
+
+<style>
+.chat-message {
+    margin-bottom: 10px;
+    padding: 8px;
+    border-radius: 8px;
+}
+
+.user-message {
+    background-color: #e3f2fd;
+    margin-left: 20px;
+}
+
+.bot-message {
+    background-color: #f5f5f5;
+    margin-right: 20px;
+}
+
+.temporary {
+    opacity: 0.7;
+    font-style: italic;
+}
+</style>
+
 {% endblock %}

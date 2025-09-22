@@ -7,16 +7,24 @@ import secrets
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import telegram_bot
+from ai_chatbot import HotelAIChatbot
+from document_manager import DocumentManager
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here')
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB max file size
+
+# Initialize services
+ai_chatbot = HotelAIChatbot()
+document_manager = DocumentManager()
 
 # Configure logging
 logging.basicConfig(
@@ -26,6 +34,29 @@ logging.basicConfig(
 
 # Database setup
 DB_NAME = 'multi_hotel.db'
+
+def check_room_availability(room_id, check_in_date, check_out_date, exclude_booking_id=None):
+    """Check if a room is available for the given date range"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    try:
+        query = '''
+        SELECT COUNT(*) FROM bookings 
+        WHERE room_id = ? AND booking_status = 'confirmed'
+        AND NOT (check_out_date <= ? OR check_in_date >= ?)
+        '''
+        params = [room_id, check_in_date, check_out_date]
+        
+        if exclude_booking_id:
+            query += ' AND id != ?'
+            params.append(exclude_booking_id)
+        
+        cursor.execute(query, params)
+        count = cursor.fetchone()[0]
+        return count == 0
+    finally:
+        conn.close()
 
 def setup_database():
     conn = sqlite3.connect(DB_NAME)
@@ -678,23 +709,54 @@ def add_booking():
         guest_name = request.form['guest_name']
         guest_email = request.form['guest_email']
         guest_phone = request.form['guest_phone']
-        room_id = request.form['room_id']
+        room_id = int(request.form['room_id'])
         check_in_date = request.form['check_in_date']
         check_out_date = request.form['check_out_date']
         guest_count = int(request.form['guest_count'])
         special_requests = request.form.get('special_requests', '')
         
+        # Validate dates
+        try:
+            check_in = datetime.datetime.strptime(check_in_date, '%Y-%m-%d')
+            check_out = datetime.datetime.strptime(check_out_date, '%Y-%m-%d')
+            
+            if check_in >= check_out:
+                flash('Check-out date must be after check-in date', 'error')
+                return redirect(url_for('add_booking'))
+            
+            if check_in.date() < datetime.date.today():
+                flash('Check-in date cannot be in the past', 'error')
+                return redirect(url_for('add_booking'))
+                
+        except ValueError:
+            flash('Invalid date format', 'error')
+            return redirect(url_for('add_booking'))
+        
+        # Check room availability
+        if not check_room_availability(room_id, check_in_date, check_out_date):
+            flash('Room is not available for the selected dates', 'error')
+            return redirect(url_for('add_booking'))
+        
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
         try:
-            # Get room price
-            cursor.execute('SELECT price_per_night FROM rooms WHERE id = ? AND hotel_id = ?', (room_id, hotel_id))
-            room_price = cursor.fetchone()[0]
+            # Get room details
+            cursor.execute('SELECT price_per_night, capacity FROM rooms WHERE id = ? AND hotel_id = ?', (room_id, hotel_id))
+            room_data = cursor.fetchone()
+            
+            if not room_data:
+                flash('Room not found', 'error')
+                return redirect(url_for('add_booking'))
+            
+            room_price, room_capacity = room_data
+            
+            # Check guest count against room capacity
+            if guest_count > room_capacity:
+                flash(f'Room capacity is {room_capacity} guests, but {guest_count} guests requested', 'error')
+                return redirect(url_for('add_booking'))
             
             # Calculate total amount
-            check_in = datetime.datetime.strptime(check_in_date, '%Y-%m-%d')
-            check_out = datetime.datetime.strptime(check_out_date, '%Y-%m-%d')
             nights = (check_out - check_in).days
             total_amount = room_price * nights
             
@@ -703,8 +765,8 @@ def add_booking():
             cursor.execute('''
             INSERT INTO bookings (hotel_id, guest_name, guest_email, guest_phone, room_id,
                                 check_in_date, check_out_date, guest_count, total_amount,
-                                special_requests, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                payment_status, special_requests, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
             ''', (hotel_id, guest_name, guest_email, guest_phone, room_id,
                   check_in_date, check_out_date, guest_count, total_amount,
                   special_requests, now))
@@ -728,6 +790,7 @@ Check-in: {check_in_date}
 Check-out: {check_out_date}
 Guests: {guest_count}
 Total Amount: ${total_amount:.2f}
+Payment Status: Pending
 
 Booking ID: {booking_id}
                 """.strip()
@@ -736,7 +799,7 @@ Booking ID: {booking_id}
             except Exception as e:
                 logging.error(f"Failed to send booking notification: {e}")
             
-            flash('Booking created successfully!', 'success')
+            flash('Booking created successfully! Payment status set to pending.', 'success')
             return redirect(url_for('owner_bookings'))
             
         except Exception as e:
@@ -999,41 +1062,7 @@ def cancel_booking(booking_id):
     finally:
         conn.close()
 
-@app.route('/owner/bookings/<int:booking_id>/checkin', methods=['POST'])
-@login_required
-@owner_required
-def checkin_guest(booking_id):
-    hotel_id = session['hotel_id']
-    data = request.get_json()
-    notes = data.get('notes', '')
-    
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    try:
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Check if record exists
-        cursor.execute('SELECT id FROM check_in_out WHERE booking_id = ?', (booking_id,))
-        record = cursor.fetchone()
-        
-        if record:
-            cursor.execute('''
-            UPDATE check_in_out SET check_in_time = ?, notes = ?
-            WHERE booking_id = ?
-            ''', (now, notes, booking_id))
-        else:
-            cursor.execute('''
-            INSERT INTO check_in_out (booking_id, check_in_time, notes)
-            VALUES (?, ?, ?)
-            ''', (booking_id, now, notes))
-        
-        conn.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-    finally:
-        conn.close()
+# Removed duplicate checkin_guest function - using enhanced version below
 
 @app.route('/owner/bookings/<int:booking_id>/checkout', methods=['POST'])
 @login_required
@@ -1174,6 +1203,327 @@ def manage_categories():
     conn.close()
     
     return render_template('manage_categories.html', categories=categories)
+
+# AI Chatbot Routes
+@app.route('/owner/chatbot', methods=['POST'])
+@login_required
+@owner_required
+def chatbot_response():
+    """Handle AI chatbot queries"""
+    hotel_id = session['hotel_id']
+    user_message = request.json.get('message', '')
+    
+    if not user_message:
+        return jsonify({'error': 'No message provided'}), 400
+    
+    try:
+        response = ai_chatbot.generate_response(hotel_id, user_message)
+        return jsonify({'response': response})
+    except Exception as e:
+        return jsonify({'error': f'Chatbot error: {str(e)}'}), 500
+
+@app.route('/owner/chatbot/insights')
+@login_required
+@owner_required
+def get_quick_insights():
+    """Get quick insights for the dashboard"""
+    hotel_id = session['hotel_id']
+    
+    try:
+        insights = ai_chatbot.get_quick_insights(hotel_id)
+        return jsonify(insights)
+    except Exception as e:
+        return jsonify({'error': f'Error getting insights: {str(e)}'}), 500
+
+# Room Availability Routes
+@app.route('/api/check-room-availability', methods=['POST'])
+@login_required
+@owner_required
+def api_check_room_availability():
+    """API endpoint to check room availability"""
+    data = request.json
+    room_id = data.get('room_id')
+    check_in_date = data.get('check_in_date')
+    check_out_date = data.get('check_out_date')
+    exclude_booking_id = data.get('exclude_booking_id')
+    
+    if not all([room_id, check_in_date, check_out_date]):
+        return jsonify({'error': 'Missing required parameters'}), 400
+    
+    try:
+        available = check_room_availability(room_id, check_in_date, check_out_date, exclude_booking_id)
+        return jsonify({'available': available})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/available-rooms', methods=['POST'])
+@login_required
+@owner_required
+def get_available_rooms():
+    """Get list of available rooms for date range"""
+    hotel_id = session['hotel_id']
+    data = request.json
+    check_in_date = data.get('check_in_date')
+    check_out_date = data.get('check_out_date')
+    
+    if not all([check_in_date, check_out_date]):
+        return jsonify({'error': 'Missing required parameters'}), 400
+    
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    try:
+        # Get all rooms for the hotel
+        cursor.execute('''
+            SELECT id, room_number, room_type, price_per_night, capacity
+            FROM rooms 
+            WHERE hotel_id = ? AND is_active = 1
+        ''', (hotel_id,))
+        
+        all_rooms = cursor.fetchall()
+        available_rooms = []
+        
+        for room in all_rooms:
+            room_id = room[0]
+            if check_room_availability(room_id, check_in_date, check_out_date):
+                available_rooms.append({
+                    'id': room[0],
+                    'room_number': room[1],
+                    'room_type': room[2],
+                    'price_per_night': room[3],
+                    'capacity': room[4]
+                })
+        
+        return jsonify({'available_rooms': available_rooms})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# Document Management Routes
+@app.route('/owner/documents')
+@login_required
+@owner_required
+def manage_documents():
+    """Document management dashboard"""
+    hotel_id = session['hotel_id']
+    search_term = request.args.get('search', '')
+    
+    if search_term:
+        documents = document_manager.search_documents(hotel_id, search_term)
+    else:
+        # Get recent documents
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT gd.id, gd.booking_id, gd.guest_name, gd.document_type, 
+                   gd.document_id, gd.file_name, gd.uploaded_at, gd.is_verified,
+                   b.room_id, r.room_number
+            FROM guest_documents gd
+            JOIN bookings b ON gd.booking_id = b.id
+            JOIN rooms r ON b.room_id = r.id
+            WHERE b.hotel_id = ?
+            ORDER BY gd.uploaded_at DESC
+            LIMIT 50
+        ''', (hotel_id,))
+        
+        documents = []
+        for row in cursor.fetchall():
+            documents.append({
+                'id': row[0],
+                'booking_id': row[1],
+                'guest_name': row[2],
+                'document_type': row[3],
+                'document_id': row[4],
+                'file_name': row[5],
+                'uploaded_at': row[6],
+                'is_verified': row[7],
+                'room_id': row[8],
+                'room_number': row[9]
+            })
+        
+        conn.close()
+    
+    # Get summary
+    summary = document_manager.get_hotel_documents_summary(hotel_id)
+    
+    return render_template('manage_documents.html', 
+                         documents=documents, 
+                         summary=summary, 
+                         search_term=search_term)
+
+@app.route('/owner/bookings/<int:booking_id>/documents', methods=['GET', 'POST'])
+@login_required
+@owner_required
+def booking_documents(booking_id):
+    """Manage documents for a specific booking"""
+    hotel_id = session['hotel_id']
+    
+    # Verify booking belongs to this hotel
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('SELECT guest_name FROM bookings WHERE id = ? AND hotel_id = ?', (booking_id, hotel_id))
+    booking = cursor.fetchone()
+    conn.close()
+    
+    if not booking:
+        flash('Booking not found', 'error')
+        return redirect(url_for('owner_bookings'))
+    
+    if request.method == 'POST':
+        # Handle document upload
+        if 'document' not in request.files:
+            flash('No file selected', 'error')
+            return redirect(request.url)
+        
+        file = request.files['document']
+        document_type = request.form['document_type']
+        document_id = request.form['document_id']
+        guest_name = booking[0]
+        
+        if file.filename == '':
+            flash('No file selected', 'error')
+            return redirect(request.url)
+        
+        result = document_manager.save_document(file, booking_id, guest_name, document_type, document_id)
+        
+        if result['success']:
+            flash(result['message'], 'success')
+        else:
+            if 'existing_document' in result:
+                flash(f"Document already exists (uploaded on {result['existing_document']['uploaded_at']})", 'warning')
+            else:
+                flash(result['error'], 'error')
+    
+    # Get documents for this booking
+    documents = document_manager.get_booking_documents(booking_id)
+    
+    return render_template('booking_documents.html', 
+                         booking_id=booking_id, 
+                         guest_name=booking[0],
+                         documents=documents)
+
+@app.route('/owner/documents/<int:document_id>/verify', methods=['POST'])
+@login_required
+@owner_required
+def verify_document(document_id):
+    """Verify or unverify a document"""
+    verified = request.json.get('verified', True)
+    
+    if document_manager.verify_document(document_id, verified):
+        status = 'verified' if verified else 'unverified'
+        return jsonify({'success': True, 'message': f'Document {status} successfully'})
+    else:
+        return jsonify({'success': False, 'error': 'Failed to update document'}), 500
+
+@app.route('/owner/documents/<int:document_id>/delete', methods=['POST'])
+@login_required
+@owner_required
+def delete_document(document_id):
+    """Delete a document"""
+    if document_manager.delete_document(document_id):
+        flash('Document deleted successfully', 'success')
+    else:
+        flash('Failed to delete document', 'error')
+    
+    return redirect(request.referrer or url_for('manage_documents'))
+
+@app.route('/owner/documents/<int:document_id>/download')
+@login_required
+@owner_required
+def download_document(document_id):
+    """Download a document file"""
+    hotel_id = session['hotel_id']
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    try:
+        # Verify document belongs to this hotel
+        cursor.execute('''
+            SELECT gd.file_path, gd.file_name
+            FROM guest_documents gd
+            JOIN bookings b ON gd.booking_id = b.id
+            WHERE gd.id = ? AND b.hotel_id = ?
+        ''', (document_id, hotel_id))
+        
+        result = cursor.fetchone()
+        if not result:
+            flash('Document not found', 'error')
+            return redirect(url_for('manage_documents'))
+        
+        file_path, original_filename = result
+        
+        if not os.path.exists(file_path):
+            flash('File not found on server', 'error')
+            return redirect(url_for('manage_documents'))
+        
+        return send_file(file_path, as_attachment=True, download_name=original_filename)
+        
+    except Exception as e:
+        flash(f'Error downloading file: {str(e)}', 'error')
+        return redirect(url_for('manage_documents'))
+    finally:
+        conn.close()
+
+# Enhanced Check-in/Check-out with Documents
+@app.route('/owner/checkin/<int:booking_id>', methods=['GET', 'POST'])
+@login_required
+@owner_required
+def checkin_guest(booking_id):
+    """Enhanced check-in process with document verification"""
+    hotel_id = session['hotel_id']
+    
+    # Get booking details
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT b.id, b.guest_name, b.guest_count, r.room_number, b.check_in_date
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        WHERE b.id = ? AND b.hotel_id = ? AND b.booking_status = 'confirmed'
+    ''', (booking_id, hotel_id))
+    
+    booking = cursor.fetchone()
+    if not booking:
+        flash('Booking not found', 'error')
+        return redirect(url_for('owner_checkin_checkout'))
+    
+    if request.method == 'POST':
+        # Process check-in
+        notes = request.form.get('notes', '')
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Check if already checked in
+        cursor.execute('SELECT id FROM check_in_out WHERE booking_id = ?', (booking_id,))
+        existing = cursor.fetchone()
+        
+        if existing:
+            cursor.execute('UPDATE check_in_out SET check_in_time = ?, notes = ? WHERE booking_id = ?', 
+                         (now, notes, booking_id))
+        else:
+            cursor.execute('INSERT INTO check_in_out (booking_id, check_in_time, notes) VALUES (?, ?, ?)', 
+                         (booking_id, now, notes))
+        
+        conn.commit()
+        flash('Guest checked in successfully!', 'success')
+        return redirect(url_for('owner_checkin_checkout'))
+    
+    # Get existing documents
+    documents = document_manager.get_booking_documents(booking_id)
+    
+    # Check if documents are required but missing
+    required_docs = booking[2]  # guest_count
+    uploaded_docs = len(documents)
+    
+    conn.close()
+    
+    return render_template('checkin_guest.html', 
+                         booking=booking, 
+                         documents=documents,
+                         required_docs=required_docs,
+                         uploaded_docs=uploaded_docs)
 
 if __name__ == '__main__':
     setup_database()

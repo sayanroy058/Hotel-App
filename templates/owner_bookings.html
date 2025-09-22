@@ -103,6 +103,10 @@
                                             <i class="fas fa-eye"></i>
                                         </button>
                                         {% if booking[10] == 'confirmed' %}
+                                        <a href="{{ url_for('booking_documents', booking_id=booking[0]) }}" 
+                                           class="btn btn-sm btn-outline-info" title="Manage Documents">
+                                            <i class="fas fa-file-alt"></i>
+                                        </a>
                                         <a href="{{ url_for('edit_booking', booking_id=booking[0]) }}" 
                                            class="btn btn-sm btn-outline-warning" title="Edit">
                                             <i class="fas fa-edit"></i>

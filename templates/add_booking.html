@@ -75,14 +75,10 @@
                             <div class="mb-3">
                                 <label for="room_id" class="form-label">Select Room *</label>
                                 <select class="form-select" id="room_id" name="room_id" required>
-                                    <option value="">Choose a room</option>
-                                    {% for room in rooms %}
-                                    <option value="{{ room[0] }}" data-price="{{ room[3] }}" data-capacity="{{ room[4] }}">
-                                        Room {{ room[1] }} - {{ room[2] }} (₹{{ "%.2f"|format(room[3]) }}/night, Max: {{ room[4] }} guests)
-                                    </option>
-                                    {% endfor %}
+                                    <option value="">Choose dates first to see available rooms</option>
                                 </select>
                                 <div class="invalid-feedback">Please select a room.</div>
+                                <div id="room-availability-status" class="mt-2"></div>
                             </div>
                         </div>
                     </div>
@@ -145,22 +141,34 @@
         
         <div class="card mt-3">
             <div class="card-header">
-                <h5><i class="fas fa-bed"></i> Available Rooms</h5>
+                <h5><i class="fas fa-bed"></i> Room Availability</h5>
             </div>
             <div class="card-body">
-                {% if rooms %}
-                <div class="small">
-                    {% for room in rooms %}
-                    <div class="mb-2 p-2 border rounded">
-                        <strong>Room {{ room[1] }}</strong><br>
-                        <span class="text-muted">{{ room[2] }} - ₹{{ "%.2f"|format(room[3]) }}/night</span><br>
-                        <span class="badge bg-info">Max {{ room[4] }} guests</span>
-                    </div>
-                    {% endfor %}
+                <div id="availability-info">
+                    <p class="text-muted">Select check-in and check-out dates to see available rooms.</p>
                 </div>
-                {% else %}
-                <p class="text-muted">No rooms available. <a href="{{ url_for('add_room') }}">Add rooms first</a>.</p>
-                {% endif %}
+                <div id="available-rooms-list" class="small">
+                    <!-- Available rooms will be populated here -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> Room Availability Legend</h5>
+            </div>
+            <div class="card-body">
+                <div class="small">
+                    <div class="mb-2">
+                        <span class="badge bg-success">Available</span> - Room is free for selected dates
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge bg-danger">Occupied</span> - Room is booked for selected dates
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge bg-warning">Partial</span> - Room has partial availability
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -183,10 +191,13 @@ document.getElementById('check_in_date').addEventListener('change', function() {
     checkoutDate.setDate(checkoutDate.getDate() + 1);
     
     document.getElementById('check_out_date').min = checkoutDate.toISOString().split('T')[0];
-    calculateTotal();
+    checkAvailableRooms();
 });
 
-document.getElementById('check_out_date').addEventListener('change', calculateTotal);
+document.getElementById('check_out_date').addEventListener('change', function() {
+    checkAvailableRooms();
+});
+
 document.getElementById('room_id').addEventListener('change', calculateTotal);
 
 function calculateTotal() {
@@ -207,6 +218,91 @@ function calculateTotal() {
         document.getElementById('rate').textContent = rate.toFixed(2);
         document.getElementById('total').textContent = total.toFixed(2);
     }
+}
+
+function checkAvailableRooms() {
+    const checkinDate = document.getElementById('check_in_date').value;
+    const checkoutDate = document.getElementById('check_out_date').value;
+    
+    if (!checkinDate || !checkoutDate) {
+        return;
+    }
+    
+    if (new Date(checkinDate) >= new Date(checkoutDate)) {
+        document.getElementById('availability-info').innerHTML = 
+            '<p class="text-danger">Check-out date must be after check-in date.</p>';
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('availability-info').innerHTML = 
+        '<p class="text-muted"><i class="fas fa-spinner fa-spin"></i> Checking room availability...</p>';
+    
+    // Fetch available rooms
+    fetch('/api/available-rooms', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            check_in_date: checkinDate,
+            check_out_date: checkoutDate
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            document.getElementById('availability-info').innerHTML = 
+                `<p class="text-danger">Error: ${data.error}</p>`;
+            return;
+        }
+        
+        const availableRooms = data.available_rooms;
+        const roomSelect = document.getElementById('room_id');
+        
+        // Clear existing options
+        roomSelect.innerHTML = '<option value="">Choose an available room</option>';
+        
+        if (availableRooms.length === 0) {
+            document.getElementById('availability-info').innerHTML = 
+                '<p class="text-warning">No rooms available for selected dates.</p>';
+            document.getElementById('available-rooms-list').innerHTML = '';
+        } else {
+            document.getElementById('availability-info').innerHTML = 
+                `<p class="text-success">${availableRooms.length} room(s) available for selected dates.</p>`;
+            
+            // Populate room select
+            availableRooms.forEach(room => {
+                const option = document.createElement('option');
+                option.value = room.id;
+                option.dataset.price = room.price_per_night;
+                option.dataset.capacity = room.capacity;
+                option.textContent = `Room ${room.room_number} - ${room.room_type} (₹${room.price_per_night.toFixed(2)}/night, Max: ${room.capacity} guests)`;
+                roomSelect.appendChild(option);
+            });
+            
+            // Update available rooms list
+            let roomsListHtml = '';
+            availableRooms.forEach(room => {
+                roomsListHtml += `
+                    <div class="mb-2 p-2 border rounded">
+                        <strong>Room ${room.room_number}</strong>
+                        <span class="badge bg-success ms-2">Available</span><br>
+                        <span class="text-muted">${room.room_type} - ₹${room.price_per_night.toFixed(2)}/night</span><br>
+                        <span class="badge bg-info">Max ${room.capacity} guests</span>
+                    </div>
+                `;
+            });
+            document.getElementById('available-rooms-list').innerHTML = roomsListHtml;
+        }
+        
+        calculateTotal();
+    })
+    .catch(error => {
+        document.getElementById('availability-info').innerHTML = 
+            '<p class="text-danger">Error checking availability. Please try again.</p>';
+        console.error('Error:', error);
+    });
 }
 
 // Validate guest count against room capacity
