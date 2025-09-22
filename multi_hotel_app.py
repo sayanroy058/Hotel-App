@@ -1069,24 +1069,77 @@ def cancel_booking(booking_id):
 @owner_required
 def checkout_guest(booking_id):
     hotel_id = session['hotel_id']
-    data = request.get_json()
-    notes = data.get('notes', '')
+    
+    # Handle both JSON and form data
+    if request.is_json:
+        data = request.get_json()
+        notes = data.get('notes', '')
+    else:
+        notes = request.form.get('notes', '')
     
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
     try:
+        # First verify the booking exists and belongs to this hotel
+        cursor.execute('SELECT id FROM bookings WHERE id = ? AND hotel_id = ?', (booking_id, hotel_id))
+        booking = cursor.fetchone()
+        
+        if not booking:
+            return jsonify({'success': False, 'error': 'Booking not found'})
+        
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
+        # Check if record exists
+        cursor.execute('SELECT id FROM check_in_out WHERE booking_id = ?', (booking_id,))
+        check_record = cursor.fetchone()
+        
+        if check_record:
+            # Update existing record
+            cursor.execute('''
+            UPDATE check_in_out SET check_out_time = ?, notes = COALESCE(notes || ' | ', '') || ?
+            WHERE booking_id = ?
+            ''', (now, notes, booking_id))
+        else:
+            # Create new record if it doesn't exist
+            cursor.execute('''
+            INSERT INTO check_in_out (booking_id, check_out_time, notes)
+            VALUES (?, ?, ?)
+            ''', (booking_id, now, notes))
+        
+        # Update booking status to reflect checkout
         cursor.execute('''
-        UPDATE check_in_out SET check_out_time = ?, notes = COALESCE(notes || ' | ', '') || ?
-        WHERE booking_id = ?
-        ''', (now, notes, booking_id))
+        UPDATE bookings SET booking_status = 'checked_out' WHERE id = ?
+        ''', (booking_id,))
         
         conn.commit()
         return jsonify({'success': True})
     except Exception as e:
+        conn.rollback()
         return jsonify({'success': False, 'error': str(e)})
+    finally:
+        conn.close()
+
+# Checkout functionality is now integrated directly in the check-in/check-out page
+# The separate checkout page has been removed
+    try:
+        # Get all current guests (checked in but not checked out)
+        cursor.execute('''
+            SELECT b.id, b.guest_name, r.room_number, 
+                   b.check_in_date, b.check_out_date, b.total_amount
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.id
+            JOIN check_in_out c ON b.id = c.booking_id
+            WHERE b.hotel_id = ? AND c.check_in_time IS NOT NULL 
+            AND c.check_out_time IS NULL
+            ORDER BY b.check_out_date ASC
+        ''', (hotel_id,))
+        
+        current_guests = cursor.fetchall()
+        return render_template('checkout_guest.html', current_guests=current_guests)
+    except Exception as e:
+        flash(f"Error loading checkout page: {str(e)}", "danger")
+        return redirect(url_for('owner_dashboard'))
     finally:
         conn.close()
 
@@ -1101,7 +1154,7 @@ def current_guests():
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     
     cursor.execute('''
-    SELECT b.guest_name, r.room_number, b.guest_count, b.check_in_date, b.check_out_date
+    SELECT b.guest_name, r.room_number, b.guest_count, b.check_in_date, b.check_out_date, b.id
     FROM bookings b
     JOIN rooms r ON b.room_id = r.id
     JOIN check_in_out c ON b.id = c.booking_id
@@ -1121,7 +1174,8 @@ def current_guests():
             'room': guest[1],
             'guests': guest[2],
             'checkin_date': guest[3],
-            'checkout_date': guest[4]
+            'checkout_date': guest[4],
+            'booking_id': guest[5]
         })
     
     return jsonify({'guests': guest_list})
@@ -1300,6 +1354,80 @@ def get_available_rooms():
     finally:
         conn.close()
 
+# Document Search API
+@app.route('/api/search-document', methods=['GET', 'POST'])
+def search_document_by_id():
+    """Search for existing document by document ID"""
+    if request.method == 'GET':
+        document_id = request.args.get('document_id', '').strip()
+        # For GET requests, we don't require login since this is called from the check-in page
+        hotel_id = None  # We'll search across all hotels for GET requests
+    else:
+        # For POST requests, maintain the existing authentication requirements
+        if 'user_id' not in session or 'hotel_id' not in session:
+            return jsonify({'found': False, 'message': 'Authentication required'}), 401
+        hotel_id = session['hotel_id']
+        data = request.json or {}
+        document_id = data.get('document_id', '').strip()
+    
+    if not document_id:
+        return jsonify({'found': False, 'message': 'Please enter a document ID'})
+    
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    try:
+        # Search for document across all bookings
+        if hotel_id is None:
+            # For GET requests, search across all hotels
+            cursor.execute('''
+                SELECT gd.id, gd.guest_name, gd.document_type, gd.uploaded_at, 
+                       gd.is_verified, b.id as booking_id, r.room_number
+                FROM guest_documents gd
+                JOIN bookings b ON gd.booking_id = b.id
+                JOIN rooms r ON b.room_id = r.id
+                WHERE gd.document_id = ?
+                ORDER BY gd.uploaded_at DESC
+            ''', (document_id,))
+        else:
+            # For POST requests, search only in the specific hotel
+            cursor.execute('''
+                SELECT gd.id, gd.guest_name, gd.document_type, gd.uploaded_at, 
+                       gd.is_verified, b.id as booking_id, r.room_number
+                FROM guest_documents gd
+                JOIN bookings b ON gd.booking_id = b.id
+                JOIN rooms r ON b.room_id = r.id
+                WHERE gd.document_id = ? AND b.hotel_id = ?
+                ORDER BY gd.uploaded_at DESC
+            ''', (document_id, hotel_id))
+        
+        result = cursor.fetchone()
+        
+        if result:
+            return jsonify({
+                'found': True,
+                'document': {
+                    'id': result[0],
+                    'guest_name': result[1],
+                    'document_type': result[2],
+                    'uploaded_at': result[3],
+                    'is_verified': result[4],
+                    'booking_id': result[5],
+                    'room_number': result[6]
+                },
+                'message': f'Document found! Previously uploaded by {result[1]} on {result[3]}'
+            })
+        else:
+            return jsonify({
+                'found': False,
+                'message': 'Document ID not found in system. You can proceed with upload.'
+            })
+    
+    except Exception as e:
+        return jsonify({'found': False, 'error': str(e)})
+    finally:
+        conn.close()
+
 # Document Management Routes
 @app.route('/owner/documents')
 @login_required
@@ -1471,7 +1599,7 @@ def download_document(document_id):
 @login_required
 @owner_required
 def checkin_guest(booking_id):
-    """Enhanced check-in process with document verification"""
+    """Enhanced check-in process with automatic document requirements"""
     hotel_id = session['hotel_id']
     
     # Get booking details
@@ -1490,7 +1618,46 @@ def checkin_guest(booking_id):
         flash('Booking not found', 'error')
         return redirect(url_for('owner_checkin_checkout'))
     
-    if request.method == 'POST':
+    # Handle document upload
+    if request.method == 'POST' and 'upload_document' in request.form:
+        guest_number = int(request.form['guest_number'])
+        document_type = request.form['document_type']
+        document_id = request.form['document_id']
+        
+        if 'document_file' not in request.files:
+            flash('No file selected', 'error')
+            return redirect(request.url)
+        
+        file = request.files['document_file']
+        if file.filename == '':
+            flash('No file selected', 'error')
+            return redirect(request.url)
+        
+        # Create guest name for this document
+        guest_name = f"{booking[1]} - Guest {guest_number}"
+        
+        result = document_manager.save_document(file, booking_id, guest_name, document_type, document_id)
+        
+        if result['success']:
+            flash(f'Document uploaded successfully for Guest {guest_number}!', 'success')
+        else:
+            if 'existing_document' in result:
+                flash(f"Document ID {document_id} already exists in the system (uploaded on {result['existing_document']['uploaded_at']})", 'warning')
+            else:
+                flash(result['error'], 'error')
+        
+        return redirect(request.url)
+    
+    # Handle final check-in
+    if request.method == 'POST' and 'complete_checkin' in request.form:
+        # Verify all required documents are uploaded
+        documents = document_manager.get_booking_documents(booking_id)
+        required_docs = booking[2]  # guest_count
+        
+        if len(documents) < required_docs:
+            flash(f'Please upload documents for all {required_docs} guests before checking in', 'error')
+            return redirect(request.url)
+        
         # Process check-in
         notes = request.form.get('notes', '')
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1513,7 +1680,7 @@ def checkin_guest(booking_id):
     # Get existing documents
     documents = document_manager.get_booking_documents(booking_id)
     
-    # Check if documents are required but missing
+    # Calculate document requirements
     required_docs = booking[2]  # guest_count
     uploaded_docs = len(documents)
     

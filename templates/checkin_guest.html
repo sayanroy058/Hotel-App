@@ -2,6 +2,108 @@
 
 {% block title %}Check-in - {{ booking[1] }} - Room {{ booking[3] }}{% endblock %}
 
+{% block scripts %}
+<script>
+function searchDocument(guestNum) {
+    const documentId = document.getElementById(`search_doc_id_${guestNum}`).value.trim();
+    const resultDiv = document.getElementById(`search_result_${guestNum}`);
+    const bookingId = {{ booking[0] }};
+    
+    if (!documentId) {
+        resultDiv.innerHTML = `<div class="alert alert-warning">Please enter a document ID to search</div>`;
+        return;
+    }
+    
+    resultDiv.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Searching...</span>
+            </div>
+            <span class="ms-2">Searching for document...</span>
+        </div>
+    `;
+    
+    // Search for document
+    fetch(`/api/search-document?document_id=${encodeURIComponent(documentId)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.found) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> <strong>Document found!</strong><br>
+                        Type: ${data.document.document_type}<br>
+                        Guest: ${data.document.guest_name}<br>
+                        <button class="btn btn-sm btn-primary mt-2" onclick="useExistingDocument(${data.document.id}, ${guestNum})">
+                            <i class="fas fa-check"></i> Use this document
+                        </button>
+                    </div>
+                `;
+                // Auto-fill document ID
+                document.getElementById(`doc_id_${guestNum}`).value = documentId;
+            } else {
+                // Get booking info to show required documents
+                fetch(`/api/booking/${bookingId}`)
+                    .then(response => response.json())
+                    .then(bookingData => {
+                        const guestCount = bookingData.guest_count;
+                        const uploadedCount = document.querySelectorAll('.document-verified').length;
+                        const remainingDocs = guestCount - uploadedCount;
+                        
+                        resultDiv.innerHTML = `
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i> Document not found. 
+                                <br>You need ${guestCount} documents (one per guest), ${remainingDocs} more needed.
+                                <br>Please upload a new PDF or image document.
+                            </div>
+                        `;
+                        // Auto-fill document ID
+                        document.getElementById(`doc_id_${guestNum}`).value = documentId;
+                    })
+                    .catch(error => {
+                        resultDiv.innerHTML = `
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i> Document not found. Please upload a new document.
+                            </div>
+                        `;
+                        // Auto-fill document ID
+                        document.getElementById(`doc_id_${guestNum}`).value = documentId;
+                    });
+            }
+        })
+        .catch(error => {
+            console.error('Error searching for document:', error);
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-times-circle"></i> Error searching for document. Please try again.
+                </div>
+            `;
+        });
+}
+
+function useExistingDocument(documentId, guestNum) {
+    // Submit form to use existing document
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = window.location.href;
+    
+    const docIdInput = document.createElement('input');
+    docIdInput.type = 'hidden';
+    docIdInput.name = 'use_existing_document';
+    docIdInput.value = documentId;
+    
+    const guestNumInput = document.createElement('input');
+    guestNumInput.type = 'hidden';
+    guestNumInput.name = 'guest_number';
+    guestNumInput.value = guestNum;
+    
+    form.appendChild(docIdInput);
+    form.appendChild(guestNumInput);
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-12">
@@ -12,8 +114,43 @@
             </ol>
         </nav>
         
-        <h2><i class="fas fa-sign-in-alt"></i> Guest Check-in</h2>
-        <p class="text-muted">Complete check-in process for {{ booking[1] }}</p>
+        <h2><i class="fas fa-sign-in-alt"></i> Guest Check-in Process</h2>
+        <p class="text-muted">Complete document verification and check-in for {{ booking[1] }}</p>
+    </div>
+</div>
+
+<!-- Progress Indicator -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h6>Check-in Progress</h6>
+                <div class="progress mb-2">
+                    {% set progress = (uploaded_docs / required_docs * 100) if required_docs > 0 else 0 %}
+                    <div class="progress-bar" style="width: {{ progress }}%">
+                        {{ uploaded_docs }}/{{ required_docs }} Documents
+                    </div>
+                </div>
+                <small class="text-muted">
+                    {% if uploaded_docs >= required_docs %}
+                        ✅ All documents uploaded - Ready for check-in
+                    {% else %}
+                        📄 {{ required_docs - uploaded_docs }} more document(s) required
+                    {% endif %}
+                </small>
+                
+                <!-- Check-in Button -->
+                <div class="mt-3 text-end">
+                    <form method="POST">
+                        <input type="hidden" name="complete_checkin" value="1">
+                        <button type="submit" class="btn btn-success" 
+                                {% if uploaded_docs < required_docs %}disabled{% endif %}>
+                            <i class="fas fa-check-circle"></i> Complete Check-in
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -29,147 +166,197 @@
                     <div class="col-md-6">
                         <p><strong>Guest Name:</strong> {{ booking[1] }}</p>
                         <p><strong>Room Number:</strong> {{ booking[3] }}</p>
-                        <p><strong>Guest Count:</strong> {{ booking[2] }}</p>
+                        <p><strong>Total Guests:</strong> {{ booking[2] }}</p>
                     </div>
                     <div class="col-md-6">
                         <p><strong>Check-in Date:</strong> {{ booking[4] }}</p>
                         <p><strong>Booking ID:</strong> #{{ booking[0] }}</p>
+                        <p><strong>Documents Required:</strong> {{ required_docs }}</p>
                     </div>
                 </div>
             </div>
         </div>
         
-        <!-- Document Verification Status -->
+        <!-- Document Upload Section -->
         <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5><i class="fas fa-file-check"></i> Document Verification</h5>
-                <a href="{{ url_for('booking_documents', booking_id=booking[0]) }}" class="btn btn-sm btn-outline-primary">
-                    <i class="fas fa-upload"></i> Manage Documents
-                </a>
+            <div class="card-header">
+                <h5><i class="fas fa-upload"></i> Document Upload - Step by Step</h5>
             </div>
             <div class="card-body">
-                {% if documents %}
-                <div class="row">
-                    <div class="col-md-8">
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Document Type</th>
-                                        <th>Document ID</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for doc in documents %}
-                                    <tr>
-                                        <td>{{ doc.document_type.title() }}</td>
-                                        <td><code>{{ doc.document_id }}</code></td>
-                                        <td>
-                                            {% if doc.is_verified %}
-                                                <span class="badge bg-success">Verified</span>
-                                            {% else %}
-                                                <span class="badge bg-warning">Pending</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            <a href="{{ url_for('download_document', document_id=doc.id) }}" 
-                                               class="btn btn-sm btn-outline-primary">
-                                                <i class="fas fa-download"></i>
-                                            </a>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        {% set verified_count = documents | selectattr('is_verified') | list | length %}
-                        {% set verification_rate = (verified_count / documents|length * 100) %}
-                        
-                        <div class="text-center">
-                            <h4 class="text-primary">{{ verified_count }}/{{ documents|length }}</h4>
-                            <p class="mb-2">Documents Verified</p>
-                            <div class="progress">
-                                <div class="progress-bar" style="width: {{ verification_rate }}%">
-                                    {{ "%.0f"|format(verification_rate) }}%
+                <!-- Guest Document Upload Forms -->
+                {% for guest_num in range(1, required_docs + 1) %}
+                <div class="guest-document-section mb-4 p-3 border rounded">
+                    <h6 class="text-primary">
+                        <i class="fas fa-user"></i> Guest {{ guest_num }} Document
+                        {% set guest_doc = documents | selectattr('guest_name', 'eq', 'Guest ' + guest_num|string) | first %}
+                        {% if guest_doc %}
+                            <span class="badge bg-success ms-2">✓ Uploaded</span>
+                        {% else %}
+                            <span class="badge bg-warning ms-2">⏳ Required</span>
+                        {% endif %}
+                    </h6>
+                    
+                    {% if guest_doc %}
+                        <!-- Show existing document -->
+                        <div class="alert alert-success">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <strong>Document Type:</strong> {{ guest_doc.document_type.title() }}<br>
+                                    <strong>Document ID:</strong> <code>{{ guest_doc.document_id }}</code><br>
+                                    <strong>Uploaded:</strong> {{ guest_doc.uploaded_at }}
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <a href="{{ url_for('download_document', document_id=guest_doc.id) }}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-download"></i> View
+                                    </a>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    {% else %}
+                        <!-- Document upload form -->
+                        <div class="document-upload-form">
+                            <!-- Document ID Search -->
+                            <div class="mb-3">
+                                <label class="form-label">Step 1: Check if Document ID exists</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="search_doc_id_{{ guest_num }}" 
+                                           placeholder="Enter Document ID (e.g., passport number, ID number)">
+                                    <button type="button" class="btn btn-outline-secondary" 
+                                            onclick="searchDocument({{ guest_num }})">
+                                        <i class="fas fa-search"></i> Search
+                                    </button>
+                                </div>
+                                <div id="search_result_{{ guest_num }}" class="mt-2"></div>
+                            </div>
+                            
+                            <!-- Upload Form -->
+                            <form method="POST" enctype="multipart/form-data" id="upload_form_{{ guest_num }}">
+                                <input type="hidden" name="upload_document" value="1">
+                                <input type="hidden" name="guest_number" value="{{ guest_num }}">
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Step 2: Document Type *</label>
+                                            <select class="form-select" name="document_type" required>
+                                                <option value="">Choose document type</option>
+                                                <option value="passport">Passport</option>
+                                                <option value="national_id">National ID</option>
+                                                <option value="driving_license">Driving License</option>
+                                                <option value="voter_id">Voter ID</option>
+                                                <option value="other">Other ID</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Step 3: Document ID/Number *</label>
+                                            <input type="text" class="form-control" name="document_id" 
+                                                   id="doc_id_{{ guest_num }}" placeholder="Enter document ID" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Step 4: Upload Document File *</label>
+                                    <input type="file" class="form-control" name="document_file" 
+                                           accept=".pdf,.jpg,.jpeg,.png" required>
+                                    <small class="text-muted">Upload PDF or image (max 5MB)</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Step 5: Guest Name</label>
+                                    <input type="text" class="form-control" name="guest_name" 
+                                           value="Guest {{ guest_num }}" required>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-upload"></i> Upload Document
+                                </button>
+                            </form>
+                        </div>
+                    {% endif %}
                 </div>
-                {% else %}
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <strong>No documents uploaded yet!</strong>
-                    <p class="mb-0">
-                        Guest documents are required for check-in. 
-                        <a href="{{ url_for('booking_documents', booking_id=booking[0]) }}" class="alert-link">
-                            Upload documents now
-                        </a>
-                    </p>
-                </div>
-                {% endif %}
+                {% endfor %}
             </div>
         </div>
         
-        <!-- Check-in Form -->
+        <!-- Final Check-in Form -->
         <div class="card">
             <div class="card-header">
-                <h5><i class="fas fa-clipboard-check"></i> Complete Check-in</h5>
+                <h5><i class="fas fa-clipboard-check"></i> Final Check-in</h5>
             </div>
             <div class="card-body">
+                {% if uploaded_docs >= required_docs %}
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <strong>All documents uploaded!</strong> You can now complete the check-in process.
+                </div>
+                
                 <form method="POST">
+                    <input type="hidden" name="complete_checkin" value="1">
+                    
                     <div class="mb-3">
                         <label for="notes" class="form-label">Check-in Notes (Optional)</label>
                         <textarea class="form-control" id="notes" name="notes" rows="3" 
                                   placeholder="Any special notes or observations during check-in..."></textarea>
                     </div>
                     
-                    <!-- Document Verification Checklist -->
-                    {% if documents %}
+                    <!-- Verification Checklist -->
                     <div class="mb-3">
-                        <label class="form-label">Document Verification Checklist</label>
+                        <label class="form-label">Pre-Check-in Verification</label>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="documents_verified" required>
                             <label class="form-check-label" for="documents_verified">
-                                I have verified all uploaded documents and they are authentic
+                                ✓ I have verified all {{ required_docs }} guest documents and they are authentic
                             </label>
                         </div>
-                    </div>
-                    {% endif %}
-                    
-                    <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="room_ready" required>
                             <label class="form-check-label" for="room_ready">
-                                Room {{ booking[3] }} is clean and ready for occupancy
+                                ✓ Room {{ booking[3] }} is clean and ready for occupancy
                             </label>
                         </div>
-                    </div>
-                    
-                    <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="guest_informed" required>
                             <label class="form-check-label" for="guest_informed">
-                                Guest has been informed about hotel policies and amenities
+                                ✓ Guest has been informed about hotel policies and amenities
                             </label>
                         </div>
                     </div>
                     
                     <div class="d-flex justify-content-between">
                         <a href="{{ url_for('owner_checkin_checkout') }}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> Back
+                            <i class="fas fa-arrow-left"></i> Back to Check-in List
                         </a>
                         
-                        <button type="submit" class="btn btn-success btn-lg" 
-                                {% if not documents %}disabled title="Upload documents first"{% endif %}>
-                            <i class="fas fa-check"></i> Complete Check-in
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-check"></i> Complete Check-in Process
                         </button>
                     </div>
                 </form>
+                
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Documents Required!</strong>
+                    <p class="mb-0">
+                        Please upload documents for all {{ required_docs }} guests before completing check-in.
+                        <br><strong>Progress:</strong> {{ uploaded_docs }}/{{ required_docs }} documents uploaded.
+                    </p>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('owner_checkin_checkout') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Check-in List
+                    </a>
+                    
+                    <button type="button" class="btn btn-success btn-lg" disabled>
+                        <i class="fas fa-lock"></i> Complete Check-in (Upload Documents First)
+                    </button>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -182,60 +369,89 @@
             </div>
             <div class="card-body">
                 <p class="small text-muted">
-                    For {{ booking[2] }} guest(s), the following documents are typically required:
+                    For {{ booking[2] }} guest(s), documents required:
                 </p>
                 
-                <ul class="small">
+                <div class="guest-requirements">
                     {% for i in range(booking[2]) %}
-                    <li>Guest {{ i + 1 }}: Valid ID proof (Passport, National ID, etc.)</li>
+                    {% set guest_doc = documents | selectattr('guest_name', 'eq', 'Guest ' + (i+1)|string) | first %}
+                    <div class="mb-2 p-2 border rounded">
+                        <strong>Guest {{ i + 1 }}:</strong>
+                        {% if guest_doc %}
+                            <span class="badge bg-success">✓ Complete</span>
+                            <br><small class="text-muted">{{ guest_doc.document_type.title() }}: {{ guest_doc.document_id }}</small>
+                        {% else %}
+                            <span class="badge bg-warning">⏳ Pending</span>
+                            <br><small class="text-muted">Valid ID proof required</small>
+                        {% endif %}
+                    </div>
                     {% endfor %}
-                </ul>
+                </div>
                 
-                <div class="alert alert-info alert-sm">
+                <div class="alert alert-info alert-sm mt-3">
                     <i class="fas fa-lightbulb"></i>
-                    <strong>Smart Document Check:</strong> The system automatically detects if a document ID already exists and prevents duplicate uploads.
+                    <strong>Smart Document Check:</strong> System prevents duplicate document IDs across all bookings.
                 </div>
             </div>
         </div>
         
-        <!-- Check-in Guidelines -->
+        <!-- Check-in Process -->
         <div class="card mt-3">
             <div class="card-header">
-                <h5><i class="fas fa-clipboard-list"></i> Check-in Guidelines</h5>
+                <h5><i class="fas fa-clipboard-list"></i> Check-in Process</h5>
             </div>
             <div class="card-body">
-                <h6>Before Check-in:</h6>
-                <ul class="small">
-                    <li>Verify all guest documents</li>
-                    <li>Ensure room is clean and ready</li>
-                    <li>Check payment status</li>
-                    <li>Prepare room keys/cards</li>
-                </ul>
-                
-                <h6>During Check-in:</h6>
-                <ul class="small">
-                    <li>Welcome the guest warmly</li>
-                    <li>Explain hotel policies</li>
-                    <li>Provide WiFi details</li>
-                    <li>Show amenities location</li>
-                </ul>
-                
-                <h6>After Check-in:</h6>
-                <ul class="small">
-                    <li>Update room status</li>
-                    <li>Send confirmation if needed</li>
-                    <li>Note any special requests</li>
-                </ul>
+                <div class="process-steps">
+                    <div class="step mb-3">
+                        <div class="d-flex align-items-center">
+                            <div class="step-number bg-primary text-white rounded-circle me-2" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px;">1</div>
+                            <div>
+                                <strong>Search Document ID</strong>
+                                <br><small class="text-muted">Check if document already exists</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="step mb-3">
+                        <div class="d-flex align-items-center">
+                            <div class="step-number bg-primary text-white rounded-circle me-2" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px;">2</div>
+                            <div>
+                                <strong>Upload Document</strong>
+                                <br><small class="text-muted">Select type, ID, and file</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="step mb-3">
+                        <div class="d-flex align-items-center">
+                            <div class="step-number bg-primary text-white rounded-circle me-2" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px;">3</div>
+                            <div>
+                                <strong>Repeat for All Guests</strong>
+                                <br><small class="text-muted">{{ required_docs }} documents total</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="step">
+                        <div class="d-flex align-items-center">
+                            <div class="step-number bg-success text-white rounded-circle me-2" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px;">4</div>
+                            <div>
+                                <strong>Complete Check-in</strong>
+                                <br><small class="text-muted">Final verification and check-in</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <!-- Quick Stats -->
+        <!-- Document Status Summary -->
         <div class="card mt-3">
             <div class="card-header">
-                <h5><i class="fas fa-chart-bar"></i> Document Status</h5>
+                <h5><i class="fas fa-chart-bar"></i> Progress Summary</h5>
             </div>
             <div class="card-body">
-                <div class="row text-center">
+                <div class="row text-center mb-3">
                     <div class="col-6">
                         <h4 class="text-primary">{{ uploaded_docs }}</h4>
                         <p class="mb-0 small">Uploaded</p>
@@ -246,50 +462,165 @@
                     </div>
                 </div>
                 
+                <div class="progress mb-2">
+                    {% set progress = (uploaded_docs / required_docs * 100) if required_docs > 0 else 0 %}
+                    <div class="progress-bar" style="width: {{ progress }}%">
+                        {{ "%.0f"|format(progress) }}%
+                    </div>
+                </div>
+                
                 {% if uploaded_docs < required_docs %}
-                <div class="alert alert-warning alert-sm mt-2">
+                <div class="alert alert-warning alert-sm">
                     <i class="fas fa-exclamation-triangle"></i>
                     {{ required_docs - uploaded_docs }} more document(s) needed
                 </div>
-                {% elif uploaded_docs >= required_docs %}
-                <div class="alert alert-success alert-sm mt-2">
+                {% else %}
+                <div class="alert alert-success alert-sm">
                     <i class="fas fa-check"></i>
-                    All required documents uploaded
+                    Ready for check-in!
                 </div>
                 {% endif %}
+            </div>
+        </div>
+        
+        <!-- File Naming Info -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> File Storage Info</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    <strong>File Naming Pattern:</strong><br>
+                    <code>{{ booking[0] }}_[type]_[timestamp].[ext]</code>
+                </p>
+                <p class="small text-muted">
+                    <strong>Supported Formats:</strong><br>
+                    PDF, JPG, PNG, GIF (Max 5MB each)
+                </p>
+                <p class="small text-muted">
+                    <strong>Storage Location:</strong><br>
+                    Documents are securely stored and linked to this booking.
+                </p>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-// Enable/disable check-in button based on document requirements
-document.addEventListener('DOMContentLoaded', function() {
-    const hasDocuments = {{ 'true' if documents else 'false' }};
-    const checkinButton = document.querySelector('button[type="submit"]');
+function searchDocument(guestNumber) {
+    const documentId = document.getElementById(`search_doc_id_${guestNumber}`).value.trim();
+    const resultDiv = document.getElementById(`search_result_${guestNumber}`);
     
-    if (!hasDocuments) {
-        checkinButton.disabled = true;
-        checkinButton.title = 'Upload guest documents first';
+    if (!documentId) {
+        resultDiv.innerHTML = '<div class="alert alert-warning alert-sm">Please enter a document ID to search</div>';
+        return;
     }
+    
+    // Show loading
+    resultDiv.innerHTML = '<div class="alert alert-info alert-sm"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
+    
+    fetch('/api/search-document', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ document_id: documentId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.found) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger alert-sm">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Document Already Exists!</strong><br>
+                    ${data.message}<br>
+                    <small>Guest: ${data.document.guest_name} | Room: ${data.document.room_number} | Type: ${data.document.document_type}</small>
+                </div>
+            `;
+            // Disable the form
+            document.getElementById(`upload_form_${guestNumber}`).style.opacity = '0.5';
+            document.getElementById(`upload_form_${guestNumber}`).style.pointerEvents = 'none';
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success alert-sm">
+                    <i class="fas fa-check-circle"></i>
+                    ${data.message}
+                </div>
+            `;
+            // Enable the form and populate document ID
+            document.getElementById(`upload_form_${guestNumber}`).style.opacity = '1';
+            document.getElementById(`upload_form_${guestNumber}`).style.pointerEvents = 'auto';
+            document.getElementById(`doc_id_${guestNumber}`).value = documentId;
+        }
+    })
+    .catch(error => {
+        resultDiv.innerHTML = '<div class="alert alert-danger alert-sm">Error searching document. Please try again.</div>';
+        console.error('Error:', error);
+    });
+}
+
+// Auto-populate document ID when typing in search
+function syncDocumentId(guestNumber) {
+    const searchValue = document.getElementById(`search_doc_id_${guestNumber}`).value;
+    document.getElementById(`doc_id_${guestNumber}`).value = searchValue;
+}
+
+// Add event listeners for real-time sync
+document.addEventListener('DOMContentLoaded', function() {
+    {% for guest_num in range(1, required_docs + 1) %}
+    const searchInput{{ guest_num }} = document.getElementById('search_doc_id_{{ guest_num }}');
+    if (searchInput{{ guest_num }}) {
+        searchInput{{ guest_num }}.addEventListener('input', function() {
+            syncDocumentId({{ guest_num }});
+        });
+    }
+    {% endfor %}
 });
 
-// Form validation
-document.querySelector('form').addEventListener('submit', function(e) {
-    const requiredCheckboxes = document.querySelectorAll('input[type="checkbox"][required]');
-    let allChecked = true;
-    
-    requiredCheckboxes.forEach(checkbox => {
-        if (!checkbox.checked) {
-            allChecked = false;
+// Form validation for final check-in
+const finalCheckinForm = document.querySelector('form[method="POST"]');
+if (finalCheckinForm && finalCheckinForm.querySelector('input[name="complete_checkin"]')) {
+    finalCheckinForm.addEventListener('submit', function(e) {
+        const requiredCheckboxes = this.querySelectorAll('input[type="checkbox"][required]');
+        let allChecked = true;
+        
+        requiredCheckboxes.forEach(checkbox => {
+            if (!checkbox.checked) {
+                allChecked = false;
+            }
+        });
+        
+        if (!allChecked) {
+            e.preventDefault();
+            alert('Please complete all required verification checks before proceeding with check-in.');
         }
     });
-    
-    if (!allChecked) {
-        e.preventDefault();
-        alert('Please complete all required checks before proceeding with check-in.');
+}
+
+// File size validation
+document.querySelectorAll('input[type="file"]').forEach(fileInput => {
+    fileInput.addEventListener('change', function() {
+        const file = this.files[0];
+        if (file && file.size > 5 * 1024 * 1024) {
+            alert('File size must be less than 5MB');
+            this.value = '';
+        }
+    });
+});
+
+// Auto-scroll to next section after successful upload
+{% if uploaded_docs < required_docs %}
+window.addEventListener('load', function() {
+    // Scroll to the first incomplete guest section
+    const incompleteSection = document.querySelector('.guest-document-section .badge.bg-warning');
+    if (incompleteSection) {
+        incompleteSection.closest('.guest-document-section').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+        });
     }
 });
+{% endif %}
 </script>
 
 {% endblock %}

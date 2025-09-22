@@ -14,7 +14,8 @@ load_dotenv()
 class HotelAIChatbot:
     def __init__(self):
         self.client = openai.OpenAI(
-            api_key=os.getenv('OPENAI_API_KEY')
+            api_key=os.getenv('OPENAI_API_KEY'),
+            base_url=os.getenv('OPENAI_BASE_URL', 'https://api.a4f.co/v1')
         )
         self.db_name = 'multi_hotel.db'
     
@@ -148,7 +149,7 @@ class HotelAIChatbot:
             """
             
             response = self.client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model="provider-3/gpt-4.1-nano",
                 messages=[
                     {"role": "system", "content": context},
                     {"role": "user", "content": user_message}

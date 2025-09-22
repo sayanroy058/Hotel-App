@@ -239,13 +239,116 @@ function processCheckin(bookingId) {
     document.getElementById('actionModalTitle').textContent = 'Confirm Check-in';
     document.getElementById('actionModalBody').innerHTML = `
         <p>Are you sure you want to check in this guest?</p>
-        <div class="mb-3">
-            <label for="checkinNotes" class="form-label">Notes (optional)</label>
-            <textarea class="form-control" id="checkinNotes" rows="3" placeholder="Any special notes or requests..."></textarea>
+        <div id="documentSearchSection" class="mb-3">
+            <label for="documentId" class="form-label">Document ID Search</label>
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" id="documentId" placeholder="Enter document ID to search...">
+                <button class="btn btn-outline-secondary" type="button" id="searchDocumentBtn">
+                    <i class="fas fa-search"></i> Search
+                </button>
+            </div>
+            <div id="documentSearchResult" class="mt-2"></div>
+        </div>
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> Please verify guest documents before check-in. If documents are not already in the system, you'll need to upload them.
         </div>
     `;
     
+    // Add event listener for document search
+    setTimeout(() => {
+        document.getElementById('searchDocumentBtn').addEventListener('click', searchDocument);
+        document.getElementById('documentId').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchDocument();
+            }
+        });
+    }, 100);
+    
     new bootstrap.Modal(document.getElementById('actionModal')).show();
+}
+
+function searchDocument() {
+    const documentId = document.getElementById('documentId').value.trim();
+    if (!documentId) {
+        document.getElementById('documentSearchResult').innerHTML = `
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i> Please enter a document ID to search.
+            </div>
+        `;
+        return;
+    }
+    
+    document.getElementById('documentSearchResult').innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Searching...</span>
+            </div>
+            <span class="ms-2">Searching for document...</span>
+        </div>
+    `;
+    
+    // Search for document
+    fetch(`/api/search-document?document_id=${encodeURIComponent(documentId)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.found) {
+                document.getElementById('documentSearchResult').innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> <strong>Document found!</strong><br>
+                        Type: ${data.document.document_type}<br>
+                        Guest: ${data.document.guest_name}<br>
+                        <button class="btn btn-sm btn-primary mt-2" onclick="useExistingDocument(${data.document.id})">
+                            <i class="fas fa-check"></i> Use this document
+                        </button>
+                    </div>
+                `;
+            } else {
+                // Get guest count to show upload options
+                fetch(`/api/booking/${currentAction.bookingId}`)
+                    .then(response => response.json())
+                    .then(bookingData => {
+                        const guestCount = bookingData.guest_count || 1;
+                        
+                        document.getElementById('documentSearchResult').innerHTML = `
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i> Document not found.<br>
+                                <p class="mt-2">You need to upload ${guestCount} document(s) for this booking.</p>
+                                <a href="/owner/checkin/${currentAction.bookingId}" class="btn btn-sm btn-primary mt-2">
+                                    <i class="fas fa-upload"></i> Proceed to document upload
+                                </a>
+                            </div>
+                        `;
+                    })
+                    .catch(error => {
+                        document.getElementById('documentSearchResult').innerHTML = `
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i> Document not found.<br>
+                                <a href="/owner/checkin/${currentAction.bookingId}" class="btn btn-sm btn-primary mt-2">
+                                    <i class="fas fa-upload"></i> Proceed to document upload
+                                </a>
+                            </div>
+                        `;
+                    });
+            }
+        })
+        .catch(error => {
+            console.error('Error searching for document:', error);
+            document.getElementById('documentSearchResult').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-times-circle"></i> Error searching for document. Please try again.
+                </div>
+            `;
+        });
+}
+
+function useExistingDocument(documentId) {
+    // Redirect to check-in page with document ID
+    window.location.href = `/owner/checkin/${currentAction.bookingId}?use_document=${documentId}`;
 }
 
 function processCheckout(bookingId) {
@@ -272,32 +375,65 @@ function processCheckout(bookingId) {
 document.getElementById('confirmActionBtn').addEventListener('click', function() {
     if (!currentAction) return;
     
-    const notes = currentAction.type === 'checkin' ? 
-        document.getElementById('checkinNotes').value : 
-        document.getElementById('checkoutNotes').value;
-    
-    const url = `/owner/bookings/${currentAction.bookingId}/${currentAction.type}`;
-    
-    fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({notes: notes})
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            bootstrap.Modal.getInstance(document.getElementById('actionModal')).hide();
-            location.reload();
-        } else {
-            alert('Error processing ' + currentAction.type);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error processing ' + currentAction.type);
-    });
+    if (currentAction.type === 'checkout') {
+        const notes = document.getElementById('checkoutNotes').value;
+        const url = `/owner/bookings/${currentAction.bookingId}/checkout`;
+        
+        // Show loading state
+        document.getElementById('confirmActionBtn').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+        document.getElementById('confirmActionBtn').disabled = true;
+        
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({notes: notes})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('actionModal')).hide();
+                
+                // Show success toast
+                const toast = document.createElement('div');
+                toast.className = 'position-fixed bottom-0 end-0 p-3';
+                toast.style.zIndex = '11';
+                toast.innerHTML = `
+                    <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                <i class="fas fa-check-circle"></i> Guest successfully checked out!
+                            </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(toast);
+                const toastEl = toast.querySelector('.toast');
+                const bsToast = new bootstrap.Toast(toastEl, {delay: 3000});
+                bsToast.show();
+                
+                // Reload page after a short delay
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                document.getElementById('confirmActionBtn').innerHTML = 'Confirm';
+                document.getElementById('confirmActionBtn').disabled = false;
+                alert('Error processing checkout: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('confirmActionBtn').innerHTML = 'Confirm';
+            document.getElementById('confirmActionBtn').disabled = false;
+            alert('Error processing checkout. Please try again.');
+        });
+    } else if (currentAction.type === 'checkin') {
+        // Handle check-in confirmation
+        window.location.href = `/owner/checkin/${currentAction.bookingId}`;
+    }
 });
 
 // Load current guests
@@ -322,6 +458,11 @@ function loadCurrentGuests() {
                                         Check-in: ${guest.checkin_date}<br>
                                         Check-out: ${guest.checkout_date}
                                     </small>
+                                    <div class="mt-2">
+                                        <button class="btn btn-sm btn-warning" onclick="processCheckout(${guest.booking_id})">
+                                            <i class="fas fa-sign-out-alt"></i> Check Out
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

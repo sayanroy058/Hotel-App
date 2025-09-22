@@ -18,6 +18,14 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+# Import document manager and Flask for API endpoints
+from document_manager import DocumentManager
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session, flash
+document_manager = DocumentManager()
+
+# Initialize Flask app
+app = Flask(__name__)
+
 # Environment variables
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 OWNER_CHAT_ID = int(os.getenv('OWNER_CHAT_ID')) if os.getenv('OWNER_CHAT_ID') else None
@@ -98,6 +106,131 @@ def add_dummy_data(cursor):
     # Get today and tomorrow's dates
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     tomorrow = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+    
+# Route for completing check-in after document verification
+@app.route('/owner/complete-checkin/<int:booking_id>', methods=['POST'])
+def complete_checkin(booking_id):
+    # Get booking details
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    try:
+        # Check if all required documents are uploaded
+        cursor.execute('''
+            SELECT guest_count FROM bookings WHERE id = ?
+        ''', (booking_id,))
+        booking = cursor.fetchone()
+        
+        if not booking:
+            flash('Booking not found', 'danger')
+            return redirect(url_for('owner_checkin_checkout'))
+        
+        guest_count = booking[0]
+        
+        # Count uploaded documents for this booking
+        cursor.execute('''
+            SELECT COUNT(*) FROM guest_documents WHERE booking_id = ?
+        ''', (booking_id,))
+        uploaded_docs = cursor.fetchone()[0]
+        
+        if uploaded_docs < guest_count:
+            flash(f'Cannot complete check-in. You need {guest_count} documents (one per guest), but only {uploaded_docs} uploaded. {guest_count - uploaded_docs} document(s) still required.', 'warning')
+            return redirect(url_for('checkin_guest', booking_id=booking_id))
+        
+        # Complete check-in
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute('''
+            INSERT INTO check_in_out (booking_id, check_in_time)
+            VALUES (?, ?)
+        ''', (booking_id, now))
+        
+        # Update booking status
+        cursor.execute('''
+            UPDATE bookings SET booking_status = 'checked_in' WHERE id = ?
+        ''', (booking_id,))
+        
+        conn.commit()
+        flash('Check-in completed successfully!', 'success')
+        return redirect(url_for('owner_checkin_checkout'))
+    
+    except Exception as e:
+        conn.rollback()
+        flash(f'Error completing check-in: {str(e)}', 'danger')
+        return redirect(url_for('checkin_guest', booking_id=booking_id))
+    finally:
+        conn.close()
+
+# API endpoint for booking information
+@app.route('/api/booking/<int:booking_id>', methods=['GET'])
+def get_booking_info(booking_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            SELECT id, guest_name, guest_count, room_id, check_in_date, check_out_date, booking_status
+            FROM bookings WHERE id = ?
+        ''', (booking_id,))
+        
+        booking = cursor.fetchone()
+        if booking:
+            booking_data = {
+                'id': booking[0],
+                'guest_name': booking[1],
+                'guest_count': booking[2],
+                'room_id': booking[3],
+                'check_in_date': booking[4],
+                'check_out_date': booking[5],
+                'booking_status': booking[6]
+            }
+            return jsonify(booking_data)
+        
+        return jsonify({'error': 'Booking not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# API endpoint for document search
+@app.route('/api/search-document', methods=['GET', 'POST'])
+def search_document():
+    if request.method == 'GET':
+        document_id = request.args.get('document_id', '')
+    else:
+        document_id = request.form.get('document_id', '')
+        
+    if not document_id:
+        return jsonify({'found': False, 'error': 'No document ID provided'})
+    
+    try:
+        # Check if document exists in the database
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, booking_id, guest_name, document_type, file_path, uploaded_at, is_verified
+            FROM guest_documents 
+            WHERE document_id = ?
+        ''', (document_id,))
+        
+        result = cursor.fetchone()
+        if result:
+            document = {
+                'id': result[0],
+                'booking_id': result[1],
+                'guest_name': result[2],
+                'document_type': result[3],
+                'file_path': result[4],
+                'uploaded_at': result[5],
+                'is_verified': bool(result[6]) if result[6] is not None else False
+            }
+            return jsonify({'found': True, 'document': document})
+        
+        return jsonify({'found': False, 'message': 'Document not found'})
+    except Exception as e:
+        logging.error(f"Error searching for document: {str(e)}")
+        return jsonify({'found': False, 'error': str(e)})
+    finally:
+        conn.close()
     day_after_tomorrow = (datetime.datetime.now() + datetime.timedelta(days=2)).strftime("%Y-%m-%d")
     yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     
