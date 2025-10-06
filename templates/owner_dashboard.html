@@ -200,29 +200,145 @@
             </div>
         </div>
         
-        <div class="card mt-3">
-            <div class="card-header">
-                <h5><i class="fas fa-robot"></i> AI Assistant</h5>
-            </div>
-            <div class="card-body">
-                <div id="chatbot-container">
-                    <div id="chat-messages" style="height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; background-color: #f8f9fa;">
-                        <div class="chat-message bot-message">
-                            <small class="text-muted">AI Assistant</small><br>
-                            <span>👋 Hi! I'm your hotel AI assistant. Ask me about occupancy, revenue, check-ins, or any other hotel insights!</span>
+        <div class="card mt-3 ai-assistant-card">
+            <div class="card-header ai-header">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <div class="ai-icon-wrapper">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0">AI Assistant</h5>
+                            <small class="text-white-50">Your 24/7 booking companion</small>
                         </div>
                     </div>
-                    <div class="input-group">
-                        <input type="text" id="chat-input" class="form-control" placeholder="Ask about your hotel..." onkeypress="handleChatKeyPress(event)">
-                        <button class="btn btn-primary" onclick="sendChatMessage()">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
+                    <span class="badge bg-success"><i class="fas fa-circle pulse"></i> Online</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="chatbot-container">
+                    <div id="chat-messages" class="modern-chat-container">
+                        <div class="welcome-banner">
+                            <div class="welcome-icon">👋</div>
+                            <h6>Welcome to Your AI Assistant!</h6>
+                            <p class="mb-2">I can help you with:</p>
+                            <div class="row g-2 text-start">
+                                <div class="col-6">
+                                    <div class="feature-item">
+                                        <i class="fas fa-calendar-plus text-primary"></i>
+                                        <span>New Bookings</span>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="feature-item">
+                                        <i class="fas fa-chart-line text-success"></i>
+                                        <span>Analytics</span>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="feature-item">
+                                        <i class="fas fa-bed text-info"></i>
+                                        <span>Room Status</span>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="feature-item">
+                                        <i class="fas fa-list-alt text-warning"></i>
+                                        <span>View Bookings</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mt-2">
-                        <small class="text-muted">Quick questions:</small><br>
-                        <button class="btn btn-sm btn-outline-secondary me-1 mb-1" onclick="askQuickQuestion('What is my occupancy rate today?')">Occupancy</button>
-                        <button class="btn btn-sm btn-outline-secondary me-1 mb-1" onclick="askQuickQuestion('How much revenue did I make this month?')">Revenue</button>
-                        <button class="btn btn-sm btn-outline-secondary me-1 mb-1" onclick="askQuickQuestion('How many check-ins do I have today?')">Check-ins</button>
+                    
+                    <!-- Special Input Forms (Hidden by default) -->
+                    <div id="date-picker-section" class="special-input-section" style="display: none;">
+                        <div class="date-picker-wrapper">
+                            <label class="form-label mb-2"><i class="fas fa-calendar-alt"></i> Select Date</label>
+                            <input type="date" id="date-picker-input" class="form-control modern-input" min="{{ today }}" />
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-sm btn-primary flex-fill" onclick="submitDateSelection()">
+                                    <i class="fas fa-check"></i> Confirm
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="cancelSpecialInput()">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="room-picker-section" class="special-input-section" style="display: none;">
+                        <div class="room-picker-wrapper">
+                            <label class="form-label mb-2"><i class="fas fa-bed"></i> Select Room</label>
+                            <select id="room-picker-select" class="form-select modern-select">
+                                <option value="">Choose a room...</option>
+                            </select>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-sm btn-primary flex-fill" onclick="submitRoomSelection()">
+                                    <i class="fas fa-check"></i> Confirm
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="cancelSpecialInput()">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="payment-picker-section" class="special-input-section" style="display: none;">
+                        <div class="payment-picker-wrapper">
+                            <label class="form-label mb-2"><i class="fas fa-credit-card"></i> Payment Status</label>
+                            <select id="payment-picker-select" class="form-select modern-select">
+                                <option value="">Choose payment status...</option>
+                                <option value="paid">✅ Paid - Payment has been received</option>
+                                <option value="pending">⏳ Pending - Payment not yet received</option>
+                            </select>
+                            <div class="alert alert-info mt-3 mb-0" style="font-size: 0.85rem;">
+                                <i class="fas fa-info-circle"></i> 
+                                <strong>Note:</strong> You can mark pending payments as paid later from the bookings page.
+                            </div>
+                            <div class="d-flex gap-2 mt-3">
+                                <button class="btn btn-sm btn-primary flex-fill" onclick="submitPaymentSelection()">
+                                    <i class="fas fa-check"></i> Confirm
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="cancelSpecialInput()">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Normal Chat Input -->
+                    <div id="normal-input-section" class="chat-input-section">
+                        <div class="input-group modern-input-group">
+                            <input type="text" id="chat-input" class="form-control modern-chat-input" 
+                                   placeholder="Type 'new booking' or ask a question..." 
+                                   onkeypress="handleChatKeyPress(event)">
+                            <button class="btn btn-primary send-btn" onclick="sendChatMessage()">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="quick-actions">
+                            <div class="quick-actions-label">Quick actions:</div>
+                            <div class="quick-actions-buttons">
+                                <button class="quick-btn primary" onclick="askQuickQuestion('new booking')">
+                                    <i class="fas fa-calendar-plus"></i>
+                                    <span>New Booking</span>
+                                </button>
+                                <button class="quick-btn secondary" onclick="askQuickQuestion('available rooms')">
+                                    <i class="fas fa-bed"></i>
+                                    <span>Available Rooms</span>
+                                </button>
+                                <button class="quick-btn secondary" onclick="askQuickQuestion('check bookings')">
+                                    <i class="fas fa-list-alt"></i>
+                                    <span>Bookings</span>
+                                </button>
+                                <button class="quick-btn secondary" onclick="askQuickQuestion('What is my occupancy rate today?')">
+                                    <i class="fas fa-chart-bar"></i>
+                                    <span>Occupancy</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -248,6 +364,11 @@
 </div>
 
 <script>
+let conversationState = {
+    waitingFor: null,
+    availableRooms: []
+};
+
 function sendChatMessage() {
     const input = document.getElementById('chat-input');
     const message = input.value.trim();
@@ -259,7 +380,7 @@ function sendChatMessage() {
     input.value = '';
     
     // Show typing indicator
-    const typingDiv = addChatMessage('Thinking...', 'bot', true);
+    const typingDiv = addChatMessage('<span class="typing-indicator"><span></span><span></span><span></span></span>', 'bot', true);
     
     // Send to backend
     fetch('/owner/chatbot', {
@@ -275,30 +396,282 @@ function sendChatMessage() {
         typingDiv.remove();
         
         if (data.error) {
-            addChatMessage('Sorry, I encountered an error: ' + data.error, 'bot');
+            addChatMessage('❌ Sorry, I encountered an error: ' + data.error, 'bot');
         } else {
-            addChatMessage(data.response, 'bot');
+            // Format response with line breaks
+            const formattedResponse = data.response.replace(/\n/g, '<br>');
+            addChatMessage(formattedResponse, 'bot');
+            
+            // Check if we need to show special inputs
+            if (formattedResponse.includes('check-in date') || formattedResponse.includes('Check-in:')) {
+                conversationState.waitingFor = 'check_in';
+                showDatePicker('check-in');
+            } else if (formattedResponse.includes('check-out date') || formattedResponse.includes('Check-out:')) {
+                conversationState.waitingFor = 'check_out';
+                showDatePicker('check-out');
+            } else if (formattedResponse.includes('type the room number') || formattedResponse.includes('Available rooms')) {
+                conversationState.waitingFor = 'room';
+                if (data.available_rooms) {
+                    conversationState.availableRooms = data.available_rooms;
+                    showRoomPicker(data.available_rooms);
+                }
+            } else if (formattedResponse.includes('Has the payment been received') || formattedResponse.includes('payment been received') || formattedResponse.includes('Type "paid" or "pending"')) {
+                conversationState.waitingFor = 'payment';
+                showPaymentPicker();
+            }
+            
+            // If booking was created, show success animation
+            if (data.booking_created) {
+                setTimeout(() => {
+                    addChatMessage('� <a href="/owner/bookings" class="chat-link">View your booking list</a> to see the new reservation.', 'bot');
+                }, 1000);
+            }
         }
     })
     .catch(error => {
         typingDiv.remove();
-        addChatMessage('Sorry, I could not process your request.', 'bot');
+        addChatMessage('❌ Sorry, I could not process your request. Please try again.', 'bot');
+        console.error('Chat error:', error);
     });
+}
+
+function showDatePicker(dateType) {
+    document.getElementById('normal-input-section').style.display = 'none';
+    document.getElementById('room-picker-section').style.display = 'none';
+    document.getElementById('date-picker-section').style.display = 'block';
+    
+    const input = document.getElementById('date-picker-input');
+    const today = new Date().toISOString().split('T')[0];
+    input.min = today;
+    input.value = today;
+    input.focus();
+}
+
+function showRoomPicker(rooms) {
+    document.getElementById('normal-input-section').style.display = 'none';
+    document.getElementById('date-picker-section').style.display = 'none';
+    document.getElementById('room-picker-section').style.display = 'block';
+    
+    const select = document.getElementById('room-picker-select');
+    select.innerHTML = '<option value="">Choose a room...</option>';
+    
+    rooms.forEach(room => {
+        const option = document.createElement('option');
+        option.value = room[0]; // room number
+        option.textContent = `${room[0]} - ${room[1]} (${room[2]})`;
+        select.appendChild(option);
+    });
+    
+    select.focus();
+}
+
+function submitDateSelection() {
+    const dateInput = document.getElementById('date-picker-input');
+    const selectedDate = dateInput.value;
+    
+    if (!selectedDate) {
+        alert('Please select a date');
+        return;
+    }
+    
+    hideSpecialInputs();
+    
+    // Add user message
+    addChatMessage(selectedDate, 'user');
+    
+    // Show typing indicator
+    const typingDiv = addChatMessage('<span class="typing-indicator"><span></span><span></span><span></span></span>', 'bot', true);
+    
+    // Send date to backend
+    fetch('/owner/chatbot', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: selectedDate })
+    })
+    .then(response => response.json())
+    .then(data => {
+        typingDiv.remove();
+        
+        if (data.error) {
+            addChatMessage('❌ ' + data.error, 'bot');
+        } else {
+            const formattedResponse = data.response.replace(/\n/g, '<br>');
+            addChatMessage(formattedResponse, 'bot');
+            
+            // Check for next step
+            if (formattedResponse.includes('check-out date')) {
+                conversationState.waitingFor = 'check_out';
+                showDatePicker('check-out');
+            } else if (formattedResponse.includes('type the room number') || formattedResponse.includes('Available rooms')) {
+                conversationState.waitingFor = 'room';
+                if (data.available_rooms) {
+                    conversationState.availableRooms = data.available_rooms;
+                    showRoomPicker(data.available_rooms);
+                }
+            }
+        }
+    })
+    .catch(error => {
+        typingDiv.remove();
+        addChatMessage('❌ Error processing date. Please try again.', 'bot');
+    });
+}
+
+function submitRoomSelection() {
+    const select = document.getElementById('room-picker-select');
+    const selectedRoom = select.options[select.selectedIndex];
+    
+    if (!selectedRoom || !selectedRoom.value) {
+        alert('Please select a room');
+        return;
+    }
+    
+    hideSpecialInputs();
+    
+    // Add user message with room number
+    addChatMessage(selectedRoom.value, 'user');
+    
+    // Show typing indicator
+    const typingDiv = addChatMessage('<span class="typing-indicator"><span></span><span></span><span></span></span>', 'bot', true);
+    
+    // Send room selection to backend
+    fetch('/owner/chatbot', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: selectedRoom.value })
+    })
+    .then(response => response.json())
+    .then(data => {
+        typingDiv.remove();
+        
+        if (data.error) {
+            addChatMessage('❌ ' + data.error, 'bot');
+        } else {
+            const formattedResponse = data.response.replace(/\n/g, '<br>');
+            addChatMessage(formattedResponse, 'bot');
+            
+            // Check if we need to show payment picker
+            if (formattedResponse.includes('Has the payment been received') || formattedResponse.includes('payment been received')) {
+                conversationState.waitingFor = 'payment';
+                showPaymentPicker();
+            } else if (data.booking_created) {
+                conversationState = { waitingFor: null, availableRooms: [] };
+                setTimeout(() => {
+                    addChatMessage('🔄 <a href="/owner/bookings" class="chat-link">View your booking list</a> to see the new reservation.', 'bot');
+                }, 1000);
+            }
+        }
+    })
+    .catch(error => {
+        typingDiv.remove();
+        addChatMessage('❌ Error processing room selection. Please try again.', 'bot');
+    });
+}
+
+function showPaymentPicker() {
+    document.getElementById('normal-input-section').style.display = 'none';
+    document.getElementById('date-picker-section').style.display = 'none';
+    document.getElementById('room-picker-section').style.display = 'none';
+    document.getElementById('payment-picker-section').style.display = 'block';
+    
+    const select = document.getElementById('payment-picker-select');
+    select.value = ''; // Reset selection
+    select.focus();
+}
+
+function submitPaymentSelection() {
+    const select = document.getElementById('payment-picker-select');
+    const selectedPayment = select.value;
+    
+    if (!selectedPayment) {
+        alert('Please select a payment status');
+        return;
+    }
+    
+    hideSpecialInputs();
+    
+    // Add user message with payment status
+    const displayText = selectedPayment === 'paid' ? '✅ Paid' : '⏳ Pending';
+    addChatMessage(displayText, 'user');
+    
+    // Show typing indicator
+    const typingDiv = addChatMessage('<span class="typing-indicator"><span></span><span></span><span></span></span>', 'bot', true);
+    
+    // Send payment status to backend
+    fetch('/owner/chatbot', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: selectedPayment })
+    })
+    .then(response => response.json())
+    .then(data => {
+        typingDiv.remove();
+        
+        if (data.error) {
+            addChatMessage('❌ ' + data.error, 'bot');
+        } else {
+            const formattedResponse = data.response.replace(/\n/g, '<br>');
+            addChatMessage(formattedResponse, 'bot');
+            
+            if (data.booking_created) {
+                conversationState = { waitingFor: null, availableRooms: [] };
+                setTimeout(() => {
+                    addChatMessage('🔄 <a href="/owner/bookings" class="chat-link">View your booking list</a> to see the new reservation.', 'bot');
+                }, 1000);
+            }
+        }
+    })
+    .catch(error => {
+        typingDiv.remove();
+        addChatMessage('❌ Error processing payment status. Please try again.', 'bot');
+    });
+}
+
+function cancelSpecialInput() {
+    hideSpecialInputs();
+    addChatMessage('Selection cancelled. You can type your response or start over.', 'bot');
+}
+
+function hideSpecialInputs() {
+    document.getElementById('date-picker-section').style.display = 'none';
+    document.getElementById('room-picker-section').style.display = 'none';
+    document.getElementById('payment-picker-section').style.display = 'none';
+    document.getElementById('normal-input-section').style.display = 'block';
+    conversationState.waitingFor = null;
 }
 
 function addChatMessage(message, sender, isTemporary = false) {
     const chatMessages = document.getElementById('chat-messages');
     const messageDiv = document.createElement('div');
-    messageDiv.className = `chat-message ${sender}-message`;
+    messageDiv.className = `chat-bubble ${sender}-bubble`;
     if (isTemporary) messageDiv.className += ' temporary';
     
-    const senderLabel = sender === 'user' ? 'You' : 'AI Assistant';
-    const senderClass = sender === 'user' ? 'text-primary' : 'text-muted';
+    const timestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     
-    messageDiv.innerHTML = `
-        <small class="${senderClass}">${senderLabel}</small><br>
-        <span>${message}</span>
-    `;
+    if (sender === 'user') {
+        messageDiv.innerHTML = `
+            <div class="message-content">
+                <div class="message-text">${message}</div>
+                <div class="message-time">${timestamp}</div>
+            </div>
+        `;
+    } else {
+        messageDiv.innerHTML = `
+            <div class="bot-avatar">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="message-content">
+                <div class="message-text">${message}</div>
+                <div class="message-time">${timestamp}</div>
+            </div>
+        `;
+    }
     
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -317,40 +690,413 @@ function handleChatKeyPress(event) {
     }
 }
 
-// Load quick insights on page load
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    fetch('/owner/chatbot/insights')
-    .then(response => response.json())
-    .then(data => {
-        if (!data.error) {
-            // You can display insights somewhere if needed
-            console.log('Quick insights loaded:', data);
-        }
-    })
-    .catch(error => console.log('Could not load insights'));
+    // Set today's date as min for date picker
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('date-picker-input');
+    if (dateInput) {
+        dateInput.min = today;
+    }
 });
 </script>
 
 <style>
-.chat-message {
-    margin-bottom: 10px;
+/* AI Assistant Card Styling */
+.ai-assistant-card {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    border: none;
+    overflow: hidden;
+    margin-bottom: 2rem;
+}
+
+.ai-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1.25rem;
+    border: none;
+}
+
+.ai-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    font-size: 1.5rem;
+}
+
+@keyframes pulse-animation {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.pulse {
+    animation: pulse-animation 2s ease-in-out infinite;
+}
+
+/* Chat Container */
+.modern-chat-container {
+    height: 450px;
+    overflow-y: auto;
+    padding: 20px;
+    background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%);
+    position: relative;
+}
+
+/* Welcome Banner */
+.welcome-banner {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border: 2px dashed #dee2e6;
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.welcome-icon {
+    font-size: 3rem;
+    margin-bottom: 12px;
+    animation: wave 2s ease-in-out infinite;
+}
+
+@keyframes wave {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(20deg); }
+    75% { transform: rotate(-20deg); }
+}
+
+.welcome-banner h6 {
+    color: #495057;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.welcome-banner p {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 8px;
+    background: white;
     border-radius: 8px;
+    font-size: 0.85rem;
+    color: #495057;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.user-message {
-    background-color: #e3f2fd;
-    margin-left: 20px;
+.feature-item i {
+    font-size: 1.1rem;
 }
 
-.bot-message {
-    background-color: #f5f5f5;
-    margin-right: 20px;
+/* Chat Bubbles */
+.chat-bubble {
+    display: flex;
+    margin-bottom: 16px;
+    animation: slideIn 0.3s ease;
 }
 
-.temporary {
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.user-bubble {
+    justify-content: flex-end;
+}
+
+.user-bubble .message-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 18px 18px 4px 18px;
+    padding: 12px 16px;
+    max-width: 75%;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.bot-bubble {
+    justify-content: flex-start;
+}
+
+.bot-avatar {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    margin-right: 10px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.bot-bubble .message-content {
+    background: white;
+    border: 1px solid #e9ecef;
+    color: #212529;
+    border-radius: 18px 18px 18px 4px;
+    padding: 12px 16px;
+    max-width: 75%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.message-text {
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+
+.message-time {
+    font-size: 0.7rem;
     opacity: 0.7;
-    font-style: italic;
+    margin-top: 4px;
+    text-align: right;
+}
+
+.user-bubble .message-time {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.bot-bubble .message-time {
+    color: #6c757d;
+}
+
+.chat-link {
+    color: #667eea;
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px dotted #667eea;
+}
+
+.chat-link:hover {
+    color: #764ba2;
+    border-bottom-color: #764ba2;
+}
+
+/* Typing Indicator */
+.typing-indicator {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.typing-indicator span {
+    width: 8px;
+    height: 8px;
+    background: #6c757d;
+    border-radius: 50%;
+    animation: typing 1.4s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-10px); }
+}
+
+/* Special Input Sections */
+.special-input-section {
+    padding: 20px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-top: 3px solid #667eea;
+}
+
+.date-picker-wrapper,
+.room-picker-wrapper,
+.payment-picker-wrapper {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.form-label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.95rem;
+}
+
+.form-label i {
+    color: #667eea;
+    margin-right: 6px;
+}
+
+.modern-input,
+.modern-select {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.modern-input:focus,
+.modern-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+}
+
+/* Chat Input Section */
+.chat-input-section {
+    padding: 16px 20px;
+    background: white;
+    border-top: 1px solid #e9ecef;
+}
+
+.modern-input-group {
+    margin-bottom: 12px;
+}
+
+.modern-chat-input {
+    border: 2px solid #e9ecef;
+    border-radius: 24px;
+    padding: 12px 20px;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+}
+
+.modern-chat-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+}
+
+.send-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 24px;
+    padding: 12px 24px;
+    transition: all 0.3s ease;
+}
+
+.send-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+/* Quick Actions */
+.quick-actions {
+    margin-top: 12px;
+}
+
+.quick-actions-label {
+    font-size: 0.8rem;
+    color: #6c757d;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.quick-actions-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.quick-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 2px solid #e9ecef;
+    border-radius: 20px;
+    background: white;
+    color: #495057;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.quick-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.quick-btn.primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: transparent;
+}
+
+.quick-btn.primary:hover {
+    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.quick-btn.secondary:hover {
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.quick-btn i {
+    font-size: 1rem;
+}
+
+/* Scrollbar Styling */
+.modern-chat-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modern-chat-container::-webkit-scrollbar-track {
+    background: #f1f3f5;
+    border-radius: 10px;
+}
+
+.modern-chat-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+}
+
+.modern-chat-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+/* Temporary message styling */
+.temporary {
+    opacity: 0.6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .modern-chat-container {
+        height: 350px;
+    }
+    
+    .quick-actions-buttons {
+        flex-direction: column;
+    }
+    
+    .quick-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .user-bubble .message-content,
+    .bot-bubble .message-content {
+        max-width: 85%;
+    }
 }
 </style>
 

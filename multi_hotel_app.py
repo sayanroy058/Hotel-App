@@ -443,7 +443,8 @@ def owner_dashboard():
                          occupancy_rate=occupancy_rate,
                          today_bookings=today_bookings,
                          monthly_revenue=monthly_revenue,
-                         recent_bookings=recent_bookings)
+                         recent_bookings=recent_bookings,
+                         today=today)
 
 @app.route('/owner/rooms')
 @login_required
@@ -1258,23 +1259,369 @@ def manage_categories():
     
     return render_template('manage_categories.html', categories=categories)
 
-# AI Chatbot Routes
+# AI Chatbot Routes with Conversational Booking
 @app.route('/owner/chatbot', methods=['POST'])
 @login_required
 @owner_required
 def chatbot_response():
-    """Handle AI chatbot queries"""
+    """Handle AI chatbot queries with conversational booking flow"""
     hotel_id = session['hotel_id']
-    user_message = request.json.get('message', '')
+    user_message = request.json.get('message', '').strip().lower()
     
     if not user_message:
         return jsonify({'error': 'No message provided'}), 400
     
     try:
+        # Initialize conversation state in session if not exists
+        if 'chatbot_state' not in session:
+            session['chatbot_state'] = {}
+        
+        chatbot_state = session['chatbot_state']
+        
+        # Check for conversational booking commands
+        if user_message in ['new booking', 'create booking', 'book room', 'make booking']:
+            # Start new booking flow
+            session['chatbot_state'] = {
+                'flow': 'booking',
+                'step': 'name',
+                'data': {}
+            }
+            session.modified = True
+            return jsonify({
+                'response': '🏨 Great! Let\'s create a new booking.\n\nPlease provide the guest\'s name:',
+                'show_input': True
+            })
+        
+        # Handle booking flow steps
+        if chatbot_state.get('flow') == 'booking':
+            return handle_booking_flow(hotel_id, user_message, chatbot_state)
+        
+        # Check for quick commands
+        if user_message in ['check bookings', 'view bookings', 'booking list']:
+            bookings = get_recent_bookings_for_chat(hotel_id)
+            if bookings:
+                response = "📋 Recent Bookings:\n\n"
+                for booking in bookings[:5]:
+                    response += f"• {booking[2]} - Room {booking[3]}\n  Check-in: {booking[4]} | Status: {booking[5]}\n\n"
+            else:
+                response = "No recent bookings found."
+            return jsonify({'response': response})
+        
+        if user_message in ['check rooms', 'available rooms', 'room availability']:
+            rooms = get_available_rooms_for_chat(hotel_id)
+            if rooms:
+                response = "🛏️ Available Rooms:\n\n"
+                for room in rooms:
+                    response += f"• Room {room[1]} - {room[2]}\n  Price: ₹{room[3]}/night\n\n"
+            else:
+                response = "No rooms available at the moment."
+            return jsonify({'response': response})
+        
+        # Default: Use AI chatbot for complex queries
         response = ai_chatbot.generate_response(hotel_id, user_message)
         return jsonify({'response': response})
     except Exception as e:
         return jsonify({'error': f'Chatbot error: {str(e)}'}), 500
+
+def handle_booking_flow(hotel_id, user_message, chatbot_state):
+    """Handle multi-step booking conversation"""
+    step = chatbot_state.get('step')
+    data = chatbot_state.get('data', {})
+    
+    try:
+        if step == 'name':
+            # Store guest name
+            data['guest_name'] = user_message.title()
+            chatbot_state['step'] = 'check_in'
+            chatbot_state['data'] = data
+            session.modified = True
+            return jsonify({
+                'response': f'✅ Guest Name: {data["guest_name"]}\n\nPlease provide the check-in date (YYYY-MM-DD):',
+                'show_input': True
+            })
+        
+        elif step == 'check_in':
+            # Validate and store check-in date
+            try:
+                check_in = datetime.datetime.strptime(user_message, '%Y-%m-%d').date()
+                if check_in < datetime.datetime.now().date():
+                    return jsonify({
+                        'response': '⚠️ Check-in date cannot be in the past. Please enter a valid date (YYYY-MM-DD):',
+                        'show_input': True
+                    })
+                data['check_in_date'] = str(check_in)
+                chatbot_state['step'] = 'check_out'
+                chatbot_state['data'] = data
+                session.modified = True
+                return jsonify({
+                    'response': f'✅ Check-in: {data["check_in_date"]}\n\nPlease provide the check-out date (YYYY-MM-DD):',
+                    'show_input': True
+                })
+            except ValueError:
+                return jsonify({
+                    'response': '⚠️ Invalid date format. Please use YYYY-MM-DD format (e.g., 2025-10-15):',
+                    'show_input': True
+                })
+        
+        elif step == 'check_out':
+            # Validate and store check-out date
+            try:
+                check_out = datetime.datetime.strptime(user_message, '%Y-%m-%d').date()
+                check_in = datetime.datetime.strptime(data['check_in_date'], '%Y-%m-%d').date()
+                if check_out <= check_in:
+                    return jsonify({
+                        'response': '⚠️ Check-out date must be after check-in date. Please enter a valid date:',
+                        'show_input': True
+                    })
+                data['check_out_date'] = str(check_out)
+                chatbot_state['step'] = 'num_guests'
+                chatbot_state['data'] = data
+                session.modified = True
+                return jsonify({
+                    'response': f'✅ Check-out: {data["check_out_date"]}\n\nHow many guests will be staying?',
+                    'show_input': True
+                })
+            except ValueError:
+                return jsonify({
+                    'response': '⚠️ Invalid date format. Please use YYYY-MM-DD format:',
+                    'show_input': True
+                })
+        
+        elif step == 'num_guests':
+            # Store number of guests
+            try:
+                num_guests = int(user_message)
+                if num_guests < 1:
+                    return jsonify({
+                        'response': '⚠️ Please enter a valid number of guests (at least 1):',
+                        'show_input': True
+                    })
+                data['num_guests'] = num_guests
+                chatbot_state['step'] = 'room_type'
+                chatbot_state['data'] = data
+                session.modified = True
+                
+                # Get available rooms for the dates
+                available_rooms = get_available_rooms_for_booking(hotel_id, data['check_in_date'], data['check_out_date'])
+                
+                if not available_rooms:
+                    session['chatbot_state'] = {}
+                    session.modified = True
+                    return jsonify({
+                        'response': '❌ Sorry, no rooms are available for the selected dates. Please try different dates by typing "new booking".',
+                        'show_input': True
+                    })
+                
+                # Show available rooms
+                response = f'✅ Number of guests: {num_guests}\n\n🛏️ Available rooms for your dates:\n\n'
+                for idx, room in enumerate(available_rooms, 1):
+                    response += f'{idx}. Room {room[1]} - {room[2]}\n   Price: ₹{room[3]}/night\n   Capacity: {room[4]} guests\n\n'
+                response += 'Please type the room number you want to book (e.g., if Room 101, type "101"):'
+                
+                data['available_rooms'] = [(r[0], r[1], r[2], r[3]) for r in available_rooms]
+                chatbot_state['data'] = data
+                session.modified = True
+                
+                return jsonify({
+                    'response': response,
+                    'show_input': True,
+                    'available_rooms': [(r[1], r[2], f'₹{r[3]}/night') for r in available_rooms]
+                })
+            except ValueError:
+                return jsonify({
+                    'response': '⚠️ Please enter a valid number:',
+                    'show_input': True
+                })
+        
+        elif step == 'room_type':
+            # Validate and store selected room
+            selected_room = None
+            for room in data.get('available_rooms', []):
+                if user_message == str(room[1]).lower() or user_message == room[1].lower():
+                    selected_room = room
+                    break
+            
+            if not selected_room:
+                return jsonify({
+                    'response': '⚠️ Invalid room selection. Please type a valid room number from the list above:',
+                    'show_input': True
+                })
+            
+            data['room_id'] = selected_room[0]
+            data['room_number'] = selected_room[1]
+            data['room_type'] = selected_room[2]
+            data['price_per_night'] = selected_room[3]
+            
+            # Calculate total amount
+            check_in = datetime.datetime.strptime(data['check_in_date'], '%Y-%m-%d').date()
+            check_out = datetime.datetime.strptime(data['check_out_date'], '%Y-%m-%d').date()
+            num_nights = (check_out - check_in).days
+            total_amount = num_nights * data['price_per_night']
+            data['num_nights'] = num_nights
+            data['total_amount'] = total_amount
+            
+            chatbot_state['step'] = 'payment_status'
+            chatbot_state['data'] = data
+            session.modified = True
+            
+            return jsonify({
+                'response': f'''✅ Room Selected: {data['room_number']} - {data['room_type']}
+
+📋 Booking Summary:
+• Guest: {data['guest_name']}
+• Check-in: {data['check_in_date']}
+• Check-out: {data['check_out_date']}
+• Guests: {data['num_guests']}
+• Room: {data['room_number']} - {data['room_type']}
+• Nights: {num_nights}
+• Price per night: ₹{data['price_per_night']}
+• Total Amount: ₹{total_amount}
+
+💳 Has the payment been received?
+Type "paid" or "pending":''',
+                'show_input': True
+            })
+        
+        elif step == 'payment_status':
+            # Store payment status and create booking
+            if user_message in ['paid', 'payment done', 'yes', 'paid done']:
+                payment_status = 'paid'
+            elif user_message in ['pending', 'not paid', 'no', 'later']:
+                payment_status = 'pending'
+            else:
+                return jsonify({
+                    'response': '⚠️ Please type either "paid" or "pending":',
+                    'show_input': True
+                })
+            
+            # Create the booking in database
+            conn = sqlite3.connect(DB_NAME)
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute('''
+                    INSERT INTO bookings (
+                        hotel_id, room_id, guest_name, guest_email, guest_phone, 
+                        check_in_date, check_out_date, guest_count, 
+                        total_amount, booking_status, payment_status, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    hotel_id,
+                    data['room_id'],
+                    data['guest_name'],
+                    '',  # Email can be added later
+                    '',  # Phone can be added later
+                    data['check_in_date'],
+                    data['check_out_date'],
+                    data['num_guests'],
+                    data['total_amount'],
+                    'confirmed',
+                    payment_status,
+                    datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                ))
+                
+                booking_id = cursor.lastrowid
+                conn.commit()
+                conn.close()
+                
+                # Clear the chatbot state
+                session['chatbot_state'] = {}
+                session.modified = True
+                
+                payment_emoji = '✅' if payment_status == 'paid' else '⏳'
+                payment_text = 'Payment Received' if payment_status == 'paid' else 'Payment Pending'
+                
+                return jsonify({
+                    'response': f'''🎉 Booking Created Successfully!
+
+📋 Booking ID: #{booking_id}
+• Guest: {data['guest_name']}
+• Room: {data['room_number']} - {data['room_type']}
+• Check-in: {data['check_in_date']}
+• Check-out: {data['check_out_date']}
+• Guests: {data['num_guests']}
+• Total: ₹{data['total_amount']}
+• Status: {payment_emoji} {payment_text}
+
+You can view this booking in your booking history. {'Payment can be marked as paid from the bookings page.' if payment_status == 'pending' else ''}
+
+Type "new booking" to create another booking!''',
+                    'show_input': True,
+                    'booking_created': True,
+                    'booking_id': booking_id
+                })
+            except Exception as e:
+                conn.rollback()
+                conn.close()
+                session['chatbot_state'] = {}
+                session.modified = True
+                return jsonify({
+                    'response': f'❌ Error creating booking: {str(e)}\n\nPlease try again by typing "new booking".',
+                    'show_input': True
+                })
+        
+    except Exception as e:
+        session['chatbot_state'] = {}
+        session.modified = True
+        return jsonify({
+            'response': f'❌ An error occurred: {str(e)}\n\nPlease start over by typing "new booking".',
+            'show_input': True
+        })
+
+def get_recent_bookings_for_chat(hotel_id):
+    """Get recent bookings for the hotel"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT b.id, r.room_number, b.guest_name, r.room_type, b.check_in_date, 
+               b.booking_status, b.payment_status
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        WHERE r.hotel_id = ?
+        ORDER BY b.created_at DESC
+        LIMIT 10
+    ''', (hotel_id,))
+    bookings = cursor.fetchall()
+    conn.close()
+    return bookings
+
+def get_available_rooms_for_chat(hotel_id):
+    """Get available rooms for the hotel"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, room_number, room_type, price_per_night
+        FROM rooms
+        WHERE hotel_id = ? AND is_active = 1
+        ORDER BY room_number
+    ''', (hotel_id,))
+    rooms = cursor.fetchall()
+    conn.close()
+    return rooms
+
+def get_available_rooms_for_booking(hotel_id, check_in_date, check_out_date):
+    """Get available rooms for specific dates"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT r.id, r.room_number, r.room_type, r.price_per_night, r.capacity
+        FROM rooms r
+        WHERE r.hotel_id = ? AND r.is_active = 1
+        AND r.id NOT IN (
+            SELECT b.room_id
+            FROM bookings b
+            WHERE b.booking_status = 'confirmed'
+            AND (
+                (b.check_in_date <= ? AND b.check_out_date > ?)
+                OR (b.check_in_date < ? AND b.check_out_date >= ?)
+                OR (b.check_in_date >= ? AND b.check_out_date <= ?)
+            )
+        )
+        ORDER BY r.room_number
+    ''', (hotel_id, check_out_date, check_in_date, check_out_date, check_in_date, check_in_date, check_out_date))
+    rooms = cursor.fetchall()
+    conn.close()
+    return rooms
 
 @app.route('/owner/chatbot/insights')
 @login_required
