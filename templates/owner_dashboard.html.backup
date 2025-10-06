@@ -483,6 +483,10 @@ function sendChatMessage() {
             if (data.checkout_completed) {
                 conversationState = { waitingFor: null, availableRooms: [] };
             }
+                setTimeout(() => {
+                    addChatMessage('� <a href="/owner/bookings" class="chat-link">View your booking list</a> to see the new reservation.', 'bot');
+                }, 1000);
+            }
         }
     })
     .catch(error => {

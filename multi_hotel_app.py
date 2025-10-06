@@ -1292,9 +1292,42 @@ def chatbot_response():
                 'show_input': True
             })
         
+        # Check for checkout command
+        if user_message in ['checkout', 'check out', 'guest checkout', 'checkout guest']:
+            # Get active bookings (checked in but not checked out)
+            active_bookings = get_active_checkins_for_chat(hotel_id)
+            if not active_bookings:
+                return jsonify({
+                    'response': '❌ No active check-ins found. All guests have already checked out or no one has checked in yet.',
+                    'show_input': True
+                })
+            
+            # Start checkout flow
+            session['chatbot_state'] = {
+                'flow': 'checkout',
+                'step': 'select_guest',
+                'data': {},
+                'active_bookings': active_bookings
+            }
+            session.modified = True
+            
+            response = '🚪 Guest Checkout\n\nPlease select the guest to checkout:\n\n'
+            for idx, booking in enumerate(active_bookings, 1):
+                response += f'{idx}. {booking[1]} - Room {booking[2]}\n   Check-in: {booking[3]}\n\n'
+            
+            return jsonify({
+                'response': response,
+                'show_input': True,
+                'checkout_guests': [(b[0], b[1], b[2], b[3]) for b in active_bookings]
+            })
+        
         # Handle booking flow steps
         if chatbot_state.get('flow') == 'booking':
             return handle_booking_flow(hotel_id, user_message, chatbot_state)
+        
+        # Handle checkout flow steps
+        if chatbot_state.get('flow') == 'checkout':
+            return handle_checkout_flow(hotel_id, user_message, chatbot_state)
         
         # Check for quick commands
         if user_message in ['check bookings', 'view bookings', 'booking list']:
@@ -1623,6 +1656,201 @@ def get_available_rooms_for_booking(hotel_id, check_in_date, check_out_date):
     conn.close()
     return rooms
 
+def get_active_checkins_for_chat(hotel_id):
+    """Get bookings that have been checked in but not checked out"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT b.id, b.guest_name, r.room_number, b.check_in_date, b.total_amount, r.id as room_id
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        LEFT JOIN check_in_out cio ON b.id = cio.booking_id
+        WHERE b.hotel_id = ? 
+        AND b.booking_status = 'confirmed'
+        AND cio.check_in_time IS NOT NULL
+        AND cio.check_out_time IS NULL
+        ORDER BY b.check_in_date DESC
+    ''', (hotel_id,))
+    bookings = cursor.fetchall()
+    conn.close()
+    return bookings
+
+def handle_checkout_flow(hotel_id, user_message, chatbot_state):
+    """Handle multi-step checkout conversation"""
+    step = chatbot_state.get('step')
+    data = chatbot_state.get('data', {})
+    active_bookings = chatbot_state.get('active_bookings', [])
+    
+    try:
+        if step == 'select_guest':
+            # Validate guest selection by room number or index
+            selected_booking = None
+            
+            # Try to match by room number
+            for booking in active_bookings:
+                if user_message == str(booking[2]).lower():
+                    selected_booking = booking
+                    break
+            
+            # Try to match by index
+            if not selected_booking:
+                try:
+                    idx = int(user_message) - 1
+                    if 0 <= idx < len(active_bookings):
+                        selected_booking = active_bookings[idx]
+                except ValueError:
+                    pass
+            
+            if not selected_booking:
+                return jsonify({
+                    'response': '⚠️ Invalid selection. Please enter the room number or guest number from the list:',
+                    'show_input': True
+                })
+            
+            # Store booking details
+            data['booking_id'] = selected_booking[0]
+            data['guest_name'] = selected_booking[1]
+            data['room_number'] = selected_booking[2]
+            data['check_in_date'] = selected_booking[3]
+            data['original_amount'] = selected_booking[4]
+            data['room_id'] = selected_booking[5]
+            
+            chatbot_state['step'] = 'additional_charges'
+            chatbot_state['data'] = data
+            session.modified = True
+            
+            return jsonify({
+                'response': f'''✅ Selected: {data['guest_name']} - Room {data['room_number']}
+📋 Original Booking Amount: ₹{data['original_amount']}
+
+💰 Any additional charges?
+(Food, amenities, services, or discount)
+
+Please select:''',
+                'show_input': True,
+                'show_charges_options': True
+            })
+        
+        elif step == 'additional_charges':
+            # Handle additional charges selection
+            if user_message in ['yes', 'y', 'add charges', 'charges']:
+                chatbot_state['step'] = 'charge_amount'
+                session.modified = True
+                return jsonify({
+                    'response': '💵 Please enter the additional charge amount (or negative for discount):\n\nExamples:\n• 500 (additional charges)\n• -200 (discount)',
+                    'show_input': True
+                })
+            elif user_message in ['no', 'n', 'no charges', 'skip']:
+                # Proceed to checkout without additional charges
+                data['additional_charges'] = 0
+                data['charge_description'] = 'None'
+                return process_checkout(hotel_id, data)
+            else:
+                return jsonify({
+                    'response': '⚠️ Please select "yes" to add charges or "no" to proceed with normal checkout:',
+                    'show_input': True,
+                    'show_charges_options': True
+                })
+        
+        elif step == 'charge_amount':
+            # Validate and store charge amount
+            try:
+                charge_amount = float(user_message)
+                data['additional_charges'] = charge_amount
+                chatbot_state['step'] = 'charge_description'
+                chatbot_state['data'] = data
+                session.modified = True
+                
+                charge_type = 'discount' if charge_amount < 0 else 'additional charge'
+                return jsonify({
+                    'response': f'✅ Amount: ₹{abs(charge_amount)} ({charge_type})\n\n📝 Please provide a description:\n(e.g., "Food & Beverages", "Mini Bar", "Discount - Early Checkout")',
+                    'show_input': True
+                })
+            except ValueError:
+                return jsonify({
+                    'response': '⚠️ Invalid amount. Please enter a valid number:\n\nExamples:\n• 500 (additional charges)\n• -200 (discount)',
+                    'show_input': True
+                })
+        
+        elif step == 'charge_description':
+            # Store description and process checkout
+            data['charge_description'] = user_message
+            return process_checkout(hotel_id, data)
+    
+    except Exception as e:
+        session['chatbot_state'] = {}
+        session.modified = True
+        return jsonify({
+            'response': f'❌ An error occurred: {str(e)}\n\nPlease start over by typing "checkout".',
+            'show_input': True
+        })
+
+def process_checkout(hotel_id, data):
+    """Process the checkout and update database"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    try:
+        # Calculate final amount
+        original_amount = data['original_amount']
+        additional_charges = data.get('additional_charges', 0)
+        final_amount = original_amount + additional_charges
+        
+        # Update check_in_out table
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute('''
+            UPDATE check_in_out 
+            SET check_out_time = ?, 
+                additional_charges = ?,
+                charge_description = ?,
+                final_amount = ?
+            WHERE booking_id = ?
+        ''', (now, additional_charges, data.get('charge_description', 'None'), final_amount, data['booking_id']))
+        
+        conn.commit()
+        conn.close()
+        
+        # Clear conversation state
+        session['chatbot_state'] = {}
+        session.modified = True
+        
+        # Build response
+        charge_info = ''
+        if additional_charges != 0:
+            charge_type = 'Discount' if additional_charges < 0 else 'Additional Charges'
+            charge_info = f'''
+💰 {charge_type}: ₹{abs(additional_charges)}
+📝 Description: {data.get('charge_description', 'None')}
+'''
+        
+        return jsonify({
+            'response': f'''🎉 Checkout Completed Successfully!
+
+👤 Guest: {data['guest_name']}
+🏠 Room: {data['room_number']}
+📅 Check-in: {data['check_in_date']}
+🕐 Check-out: {now.split()[0]} {now.split()[1]}
+
+💵 Original Amount: ₹{original_amount}
+{charge_info}
+💳 Final Amount: ₹{final_amount}
+
+✅ Guest has been checked out successfully!
+
+Type "checkout" to checkout another guest.''',
+            'show_input': True,
+            'checkout_completed': True
+        })
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        session['chatbot_state'] = {}
+        session.modified = True
+        return jsonify({
+            'response': f'❌ Error processing checkout: {str(e)}\n\nPlease try again by typing "checkout".',
+            'show_input': True
+        })
+
 @app.route('/owner/chatbot/insights')
 @login_required
 @owner_required
@@ -1753,6 +1981,7 @@ def search_document_by_id():
         if result:
             return jsonify({
                 'found': True,
+                'reusable': True,
                 'document': {
                     'id': result[0],
                     'guest_name': result[1],
@@ -1760,13 +1989,15 @@ def search_document_by_id():
                     'uploaded_at': result[3],
                     'is_verified': result[4],
                     'booking_id': result[5],
-                    'room_number': result[6]
+                    'room_number': result[6],
+                    'document_id': document_id
                 },
                 'message': f'Document found! Previously uploaded by {result[1]} on {result[3]}'
             })
         else:
             return jsonify({
                 'found': False,
+                'reusable': False,
                 'message': 'Document ID not found in system. You can proceed with upload.'
             })
     
@@ -1964,6 +2195,43 @@ def checkin_guest(booking_id):
     if not booking:
         flash('Booking not found', 'error')
         return redirect(url_for('owner_checkin_checkout'))
+    
+    # Handle reusing existing document
+    if request.method == 'POST' and 'use_existing_document' in request.form:
+        guest_number = int(request.form['guest_number'])
+        document_id = request.form['use_existing_document']
+        document_type = request.form.get('document_type', '')
+        
+        # Find the existing document
+        cursor.execute('''
+            SELECT id, file_path, guest_name, document_type
+            FROM guest_documents
+            WHERE document_id = ?
+            ORDER BY uploaded_at DESC
+            LIMIT 1
+        ''', (document_id,))
+        
+        existing_doc = cursor.fetchone()
+        
+        if existing_doc:
+            # Create a new record linking this document to the current booking
+            guest_name = f"{booking[1]} - Guest {guest_number}"
+            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Use the existing file path and document details
+            cursor.execute('''
+                INSERT INTO guest_documents 
+                (booking_id, guest_name, document_type, document_id, file_path, uploaded_at, is_verified)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (booking_id, guest_name, existing_doc[3], document_id, existing_doc[1], now, 1))
+            
+            conn.commit()
+            flash(f'✅ Existing document reused successfully for Guest {guest_number}!', 'success')
+        else:
+            flash('Document not found in system', 'error')
+        
+        conn.close()
+        return redirect(request.url)
     
     # Handle document upload
     if request.method == 'POST' and 'upload_document' in request.form:

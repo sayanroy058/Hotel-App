@@ -80,7 +80,7 @@ function searchDocument(guestNum) {
         });
 }
 
-function useExistingDocument(documentId, guestNum) {
+function useExistingDocument(documentId, guestNum, documentType) {
     // Submit form to use existing document
     const form = document.createElement('form');
     form.method = 'POST';
@@ -96,10 +96,26 @@ function useExistingDocument(documentId, guestNum) {
     guestNumInput.name = 'guest_number';
     guestNumInput.value = guestNum;
     
+    const docTypeInput = document.createElement('input');
+    docTypeInput.type = 'hidden';
+    docTypeInput.name = 'document_type';
+    docTypeInput.value = documentType;
+    
     form.appendChild(docIdInput);
     form.appendChild(guestNumInput);
+    form.appendChild(docTypeInput);
     document.body.appendChild(form);
     form.submit();
+}
+
+function clearSearchResult(guestNum) {
+    // Clear search result and show upload form
+    const resultDiv = document.getElementById(`search_result_${guestNum}`);
+    resultDiv.innerHTML = '';
+    document.getElementById(`upload_form_${guestNum}`).style.display = 'block';
+    document.getElementById(`upload_form_${guestNum}`).style.opacity = '1';
+    document.getElementById(`upload_form_${guestNum}`).style.pointerEvents = 'auto';
+    document.getElementById(`search_doc_id_${guestNum}`).value = '';
 }
 </script>
 {% endblock %}
@@ -528,7 +544,33 @@ function searchDocument(guestNumber) {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.found) {
+        if (data.found && data.reusable) {
+            // Show confirmation dialog to reuse existing document
+            resultDiv.innerHTML = `
+                <div class="alert alert-info alert-sm">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Document Found!</strong><br>
+                    This document ID was previously uploaded by <strong>${data.document.guest_name}</strong> 
+                    on ${data.document.uploaded_at}<br>
+                    <small>Room: ${data.document.room_number} | Type: ${data.document.document_type}</small>
+                    <hr class="my-2">
+                    <div class="mt-2">
+                        <strong>Do you want to use this existing document?</strong>
+                        <div class="btn-group d-block mt-2" role="group">
+                            <button type="button" class="btn btn-success btn-sm" onclick="useExistingDocument('${data.document.document_id}', ${guestNumber}, '${data.document.document_type}')">
+                                <i class="fas fa-check"></i> Yes, Use This Document
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="clearSearchResult(${guestNumber})">
+                                <i class="fas fa-times"></i> No, Upload New One
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            // Keep form enabled but hidden until user decides
+            document.getElementById(`upload_form_${guestNumber}`).style.display = 'none';
+        } else if (data.found) {
+            // Old behavior for non-reusable documents
             resultDiv.innerHTML = `
                 <div class="alert alert-danger alert-sm">
                     <i class="fas fa-exclamation-triangle"></i>
@@ -550,6 +592,7 @@ function searchDocument(guestNumber) {
             // Enable the form and populate document ID
             document.getElementById(`upload_form_${guestNumber}`).style.opacity = '1';
             document.getElementById(`upload_form_${guestNumber}`).style.pointerEvents = 'auto';
+            document.getElementById(`upload_form_${guestNumber}`).style.display = 'block';
             document.getElementById(`doc_id_${guestNumber}`).value = documentId;
         }
     })
