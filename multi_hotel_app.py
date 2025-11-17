@@ -177,6 +177,21 @@ def setup_database():
     )
     ''')
     
+    # Create guest_documents table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS guest_documents (
+        id INTEGER PRIMARY KEY,
+        booking_id INTEGER NOT NULL,
+        guest_name TEXT NOT NULL,
+        document_type TEXT NOT NULL,
+        document_id TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        uploaded_at TEXT NOT NULL,
+        is_verified BOOLEAN DEFAULT 1,
+        FOREIGN KEY (booking_id) REFERENCES bookings (id)
+    )
+    ''')
+    
     # Create default admin user if not exists
     cursor.execute('SELECT COUNT(*) FROM admin_users')
     if cursor.fetchone()[0] == 0:
@@ -323,6 +338,110 @@ def admin_hotels():
     conn.close()
     
     return render_template('admin_hotels.html', hotels=hotels)
+
+@app.route('/admin/sales')
+@login_required
+@admin_required
+def admin_sales():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    # Get filter parameters
+    period = request.args.get('period', 'all')  # all, day, week, month
+    hotel_id = request.args.get('hotel_id', 'all')
+    
+    # Get all hotels for dropdown
+    cursor.execute('SELECT id, name FROM hotels WHERE is_active = 1 ORDER BY name')
+    hotels = cursor.fetchall()
+    
+    # Build date filter based on period
+    date_filter = ""
+    params = []
+    
+    if period == 'day':
+        date_filter = "AND DATE(b.created_at) = DATE('now')"
+    elif period == 'week':
+        date_filter = "AND DATE(b.created_at) >= DATE('now', '-7 days')"
+    elif period == 'month':
+        date_filter = "AND DATE(b.created_at) >= DATE('now', 'start of month')"
+    
+    # Build hotel filter
+    hotel_filter = ""
+    if hotel_id != 'all':
+        hotel_filter = "AND b.hotel_id = ?"
+        params.append(hotel_id)
+    
+    # Get total sales per hotel
+    query = f'''
+    SELECT h.id, h.name,
+           COUNT(CASE WHEN b.booking_status = 'confirmed' THEN 1 END) as total_bookings,
+           SUM(CASE WHEN b.booking_status = 'confirmed' AND b.payment_status = 'paid' THEN b.total_amount ELSE 0 END) as total_paid,
+           SUM(CASE WHEN b.booking_status = 'confirmed' AND b.payment_status = 'pending' THEN b.total_amount ELSE 0 END) as total_pending,
+           SUM(CASE WHEN b.booking_status = 'confirmed' THEN b.total_amount ELSE 0 END) as total_revenue
+    FROM hotels h
+    LEFT JOIN bookings b ON h.id = b.hotel_id {date_filter} {hotel_filter}
+    WHERE h.is_active = 1
+    GROUP BY h.id, h.name
+    ORDER BY total_revenue DESC
+    '''
+    
+    cursor.execute(query, params)
+    hotel_sales = cursor.fetchall()
+    
+    # Get overall totals
+    total_query = f'''
+    SELECT 
+        COUNT(CASE WHEN booking_status = 'confirmed' THEN 1 END) as total_bookings,
+        SUM(CASE WHEN booking_status = 'confirmed' AND payment_status = 'paid' THEN total_amount ELSE 0 END) as total_paid,
+        SUM(CASE WHEN booking_status = 'confirmed' AND payment_status = 'pending' THEN total_amount ELSE 0 END) as total_pending,
+        SUM(CASE WHEN booking_status = 'confirmed' THEN total_amount ELSE 0 END) as total_revenue
+    FROM bookings b
+    WHERE 1=1 {date_filter} {hotel_filter}
+    '''
+    
+    cursor.execute(total_query, params)
+    totals = cursor.fetchone()
+    
+    # Get daily sales trend (last 30 days) for selected hotel or all
+    trend_query = f'''
+    SELECT DATE(b.created_at) as booking_date,
+           SUM(CASE WHEN b.booking_status = 'confirmed' AND b.payment_status = 'paid' THEN b.total_amount ELSE 0 END) as daily_sales
+    FROM bookings b
+    WHERE DATE(b.created_at) >= DATE('now', '-30 days')
+    AND b.booking_status = 'confirmed'
+    {hotel_filter}
+    GROUP BY DATE(b.created_at)
+    ORDER BY booking_date
+    '''
+    
+    cursor.execute(trend_query, params)
+    daily_trend = cursor.fetchall()
+    
+    # Get recent transactions
+    recent_query = f'''
+    SELECT b.id, h.name, b.guest_name, r.room_number, b.check_in_date, b.check_out_date,
+           b.total_amount, b.payment_status, b.booking_status, b.created_at
+    FROM bookings b
+    JOIN hotels h ON b.hotel_id = h.id
+    JOIN rooms r ON b.room_id = r.id
+    WHERE b.booking_status = 'confirmed' {date_filter} {hotel_filter}
+    ORDER BY b.created_at DESC
+    LIMIT 20
+    '''
+    
+    cursor.execute(recent_query, params)
+    recent_bookings = cursor.fetchall()
+    
+    conn.close()
+    
+    return render_template('admin_sales_reports.html',
+                         hotels=hotels,
+                         hotel_sales=hotel_sales,
+                         totals=totals,
+                         daily_trend=daily_trend,
+                         recent_bookings=recent_bookings,
+                         selected_period=period,
+                         selected_hotel=hotel_id)
 
 @app.route('/admin/add_hotel', methods=['GET', 'POST'])
 @login_required
@@ -2198,39 +2317,58 @@ def checkin_guest(booking_id):
     
     # Handle reusing existing document
     if request.method == 'POST' and 'use_existing_document' in request.form:
-        guest_number = int(request.form['guest_number'])
-        document_id = request.form['use_existing_document']
-        document_type = request.form.get('document_type', '')
-        
-        # Find the existing document
-        cursor.execute('''
-            SELECT id, file_path, guest_name, document_type
-            FROM guest_documents
-            WHERE document_id = ?
-            ORDER BY uploaded_at DESC
-            LIMIT 1
-        ''', (document_id,))
-        
-        existing_doc = cursor.fetchone()
-        
-        if existing_doc:
-            # Create a new record linking this document to the current booking
-            guest_name = f"{booking[1]} - Guest {guest_number}"
-            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            guest_number = int(request.form['guest_number'])
+            document_id = request.form['use_existing_document']
+            document_type = request.form.get('document_type', '')
             
-            # Use the existing file path and document details
+            logging.info(f"Reusing document {document_id} for guest {guest_number}, type: {document_type}")
+            
+            # Find the existing document
             cursor.execute('''
-                INSERT INTO guest_documents 
-                (booking_id, guest_name, document_type, document_id, file_path, uploaded_at, is_verified)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (booking_id, guest_name, existing_doc[3], document_id, existing_doc[1], now, 1))
+                SELECT id, file_path, guest_name, document_type
+                FROM guest_documents
+                WHERE document_id = ?
+                ORDER BY uploaded_at DESC
+                LIMIT 1
+            ''', (document_id,))
             
-            conn.commit()
-            flash(f'✅ Existing document reused successfully for Guest {guest_number}!', 'success')
-        else:
-            flash('Document not found in system', 'error')
+            existing_doc = cursor.fetchone()
+            
+            if existing_doc:
+                # Create guest name consistent with upload handler
+                guest_name = f"{booking[1]} - Guest {guest_number}"
+                
+                now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Use the document type from form if provided, otherwise use existing
+                final_doc_type = document_type if document_type else existing_doc[3]
+                
+                # Check if this document already exists for this booking and guest
+                cursor.execute('''
+                    SELECT id FROM guest_documents
+                    WHERE booking_id = ? AND guest_name = ? AND document_id = ?
+                ''', (booking_id, guest_name, document_id))
+                
+                if cursor.fetchone():
+                    flash(f'⚠️ This document is already assigned to Guest {guest_number}', 'warning')
+                else:
+                    # Create a new record linking this document to the current booking
+                    cursor.execute('''
+                        INSERT INTO guest_documents 
+                        (booking_id, guest_name, document_type, document_id, file_path, uploaded_at, is_verified)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (booking_id, guest_name, final_doc_type, document_id, existing_doc[1], now, 1))
+                    
+                    conn.commit()
+                    flash(f'✅ Existing document reused successfully for Guest {guest_number}!', 'success')
+            else:
+                flash('❌ Document not found in system', 'error')
+        except Exception as e:
+            flash(f'❌ Error reusing document: {str(e)}', 'error')
+        finally:
+            conn.close()
         
-        conn.close()
         return redirect(request.url)
     
     # Handle document upload
