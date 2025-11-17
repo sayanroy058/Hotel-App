@@ -33,7 +33,7 @@ function searchDocument(guestNum) {
                         <i class="fas fa-check-circle"></i> <strong>Document found!</strong><br>
                         Type: ${data.document.document_type}<br>
                         Guest: ${data.document.guest_name}<br>
-                        <button class="btn btn-sm btn-primary mt-2" onclick="useExistingDocument(${data.document.id}, ${guestNum})">
+                        <button class="btn btn-sm btn-primary mt-2" onclick="useExistingDocument('${data.document.document_id}', ${guestNum}, '${data.document.document_type}')">
                             <i class="fas fa-check"></i> Use this document
                         </button>
                     </div>
@@ -81,31 +81,36 @@ function searchDocument(guestNum) {
 }
 
 function useExistingDocument(documentId, guestNum, documentType) {
-    // Submit form to use existing document
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = window.location.href;
-    
-    const docIdInput = document.createElement('input');
-    docIdInput.type = 'hidden';
-    docIdInput.name = 'use_existing_document';
-    docIdInput.value = documentId;
-    
-    const guestNumInput = document.createElement('input');
-    guestNumInput.type = 'hidden';
-    guestNumInput.name = 'guest_number';
-    guestNumInput.value = guestNum;
-    
-    const docTypeInput = document.createElement('input');
-    docTypeInput.type = 'hidden';
-    docTypeInput.name = 'document_type';
-    docTypeInput.value = documentType;
-    
-    form.appendChild(docIdInput);
-    form.appendChild(guestNumInput);
-    form.appendChild(docTypeInput);
-    document.body.appendChild(form);
-    form.submit();
+    const resultDiv = document.getElementById(`search_result_${guestNum}`);
+    resultDiv.innerHTML = '<div class="alert alert-info alert-sm"><i class="fas fa-spinner fa-spin"></i> Processing...</div>';
+    const params = new URLSearchParams();
+    params.append('use_existing_document', documentId);
+    params.append('guest_number', String(guestNum));
+    params.append('document_type', documentType || '');
+    fetch(window.location.href, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString()
+    }).then(res => {
+        if (res.ok) {
+            window.location.reload();
+        } else {
+            throw new Error('non-200');
+        }
+    }).catch(() => {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.location.href;
+        ['use_existing_document','guest_number','document_type'].forEach(name => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = name === 'use_existing_document' ? documentId : name === 'guest_number' ? String(guestNum) : (documentType || '');
+            form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+    });
 }
 
 function clearSearchResult(guestNum) {
@@ -204,7 +209,8 @@ function clearSearchResult(guestNum) {
                 <div class="guest-document-section mb-4 p-3 border rounded">
                     <h6 class="text-primary">
                         <i class="fas fa-user"></i> Guest {{ guest_num }} Document
-                        {% set guest_doc = documents | selectattr('guest_name', 'eq', 'Guest ' + guest_num|string) | first %}
+                        {% set expected_guest_name = booking[1] + ' - Guest ' + guest_num|string %}
+                        {% set guest_doc = documents | selectattr('guest_name', 'eq', expected_guest_name) | first %}
                         {% if guest_doc %}
                             <span class="badge bg-success ms-2">✓ Uploaded</span>
                         {% else %}
@@ -390,7 +396,8 @@ function clearSearchResult(guestNum) {
                 
                 <div class="guest-requirements">
                     {% for i in range(booking[2]) %}
-                    {% set guest_doc = documents | selectattr('guest_name', 'eq', 'Guest ' + (i+1)|string) | first %}
+                    {% set expected_guest_name = booking[1] + ' - Guest ' + (i+1)|string %}
+                    {% set guest_doc = documents | selectattr('guest_name', 'eq', expected_guest_name) | first %}
                     <div class="mb-2 p-2 border rounded">
                         <strong>Guest {{ i + 1 }}:</strong>
                         {% if guest_doc %}
